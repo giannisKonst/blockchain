@@ -130,7 +130,7 @@ final class BlockDb {
             byte[] blockSignature = rs.getBytes("block_signature");
             byte[] payloadHash = rs.getBytes("payload_hash");
             long id = rs.getLong("id");
-            return new BlockImpl(version, timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash,
+            return new BlockNXTImpl(version, timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash,
                     generatorPublicKey, generationSignature, blockSignature, previousBlockHash,
                     cumulativeDifficulty, baseTarget, nextBlockId, height, id);
         } catch (SQLException e) {
@@ -138,8 +138,13 @@ final class BlockDb {
         }
     }
 
-    static void saveBlock(Connection con, BlockImpl block) {
+    static void saveBlock(Connection con, BlockImpl block1) {
         try {
+            if(block1 instanceof BlockNXTImpl == false) {  //TODO
+                throw new RuntimeException("developing");
+            }
+            BlockNXTImpl block = (BlockNXTImpl) block1;
+
             try (PreparedStatement pstmt = con.prepareStatement("INSERT INTO block (id, version, timestamp, previous_block_id, "
                     + "total_amount, total_fee, payload_length, generator_public_key, previous_block_hash, cumulative_difficulty, "
                     + "base_target, height, generation_signature, block_signature, payload_hash, generator_id) "

@@ -16,13 +16,14 @@ import java.util.Collections;
 import java.util.List;
 */
 
-public class ProofOfNXT implements Proof {
+public class ProofOfNXT /*implements Proof*/ {
 
 	long proof;
 	BlockNXT block;
 
 	private ProofOfNXT() {};
 
+/*
 	public ProofOfNXT(BlockNXT block) {
 		this.block = block;
 	}
@@ -31,54 +32,7 @@ public class ProofOfNXT implements Proof {
 	public boolean verify() throws NxtException {
 		return verifyGenerationSignature();
 	}
-	
-    boolean verifyGenerationSignature() throws BlockchainProcessor.BlockOutOfOrderException {
-
-        try {
-
-            BlockImpl previousBlock = BlockchainImpl.getInstance().getBlock(block.getPreviousBlockId());
-            if (previousBlock == null) {
-                throw new BlockchainProcessor.BlockOutOfOrderException("Can't verify signature because previous block is missing");
-            }
-
-		/*
-            if (version == 1 && !Crypto.verify(generationSignature, previousBlock.generationSignature, generatorPublicKey, version >= 3)) {
-                return false;
-            }
-		*/
-
-            Account account = Account.getAccount(block.getGeneratorId());
-            long effectiveBalance = account == null ? 0 : account.getEffectiveBalanceNXT();
-            if (effectiveBalance <= 0) {
-                return false;
-            }
-
-            MessageDigest digest = Crypto.sha256();
-            byte[] generationSignatureHash;
-            if (block.getVersion() == 1) {
-                generationSignatureHash = digest.digest(block.getGenerationSignature());
-            } else {
-                digest.update(previousBlock.getGenerationSignature());
-                generationSignatureHash = digest.digest(block.getGeneratorPublicKey());
-                if (!Arrays.equals(block.getGenerationSignature(), generationSignatureHash)) {
-                    return false;
-                }
-            }
-
-            BigInteger hit = new BigInteger(1, new byte[]{generationSignatureHash[7], generationSignatureHash[6], generationSignatureHash[5], generationSignatureHash[4], generationSignatureHash[3], generationSignatureHash[2], generationSignatureHash[1], generationSignatureHash[0]});
-
-            return verifyHit(hit, BigInteger.valueOf(effectiveBalance), previousBlock, block.getTimestamp())
-                    // || (this.height < Constants.TRANSPARENT_FORGING_BLOCK_5 && Arrays.binarySearch(badBlocks, this.getId()) >= 0)
-			;
-
-        } catch (RuntimeException e) {
-
-            Logger.logMessage("Error verifying block generation signature", e);
-            return false;
-
-        }
-
-    }
+*/	
 
     static public boolean verifyHit(BigInteger hit, BigInteger effectiveBalance, Block previousBlock1, int timestamp) {
 	BlockNXT previousBlock = (BlockNXT)previousBlock1;

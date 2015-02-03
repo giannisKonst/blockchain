@@ -78,6 +78,8 @@ public interface Transaction {
 
     byte[] getBytes();
 
+    int getSize();
+
     byte[] getUnsignedBytes();
 
     JSONObject getJSONObject();

@@ -33,12 +33,16 @@ public interface Block {
 
     byte[] getPayloadHash();
 
+    byte[] getHash();
+
     List<? extends Transaction> getTransactions();
 
     //Proof getProofOfWinning();
     //long getBaseTarget();  //rmv
     //BigInteger getCumulativeDifficulty();  //rmv
 
-    JSONObject getJSONObject();
+    JSONObject getJSONObject(); //for Peers
+
+    JSONObject getJSONObject(boolean includeTransactions); //for http
 
 }

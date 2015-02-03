@@ -18,6 +18,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
+
+import java.util.SortedSet;
+import nxt.BlockchainProcessor.BlockNotAcceptedException;
+import nxt.BlockchainProcessor.TransactionNotAcceptedException;
+
+
 public final class Generator implements Comparable<Generator> {
 
     public static enum Event {
@@ -138,11 +144,6 @@ public final class Generator implements Comparable<Generator> {
         return allGenerators;
     }
 
-    static boolean verifyHit_old(BigInteger hit, BigInteger effectiveBalance, Block previousBlock, int timestamp) {
-	throw new RuntimeException("relocated");
-    }
-
-
     static boolean allowsFakeForging(byte[] publicKey) {
         return Constants.isTestnet && publicKey != null && Arrays.equals(publicKey, fakeForgingPublicKey);
     }
@@ -207,11 +208,12 @@ public final class Generator implements Comparable<Generator> {
         listeners.notify(this, Event.GENERATION_DEADLINE);
     }
 
-    boolean forge(Block lastBlock, int timestamp) throws BlockchainProcessor.BlockNotAcceptedException {
+    private boolean forge(Block lastBlock, int timestamp) throws BlockchainProcessor.BlockNotAcceptedException {
         if (ProofOfNXT.verifyHit(hit, effectiveBalance, lastBlock, timestamp)) {
             while (true) {
                 try {
-                    BlockchainProcessorImpl.getInstance().generateBlock(secretPhrase, timestamp);
+                    //BlockchainProcessorImpl.getInstance().generateBlock(secretPhrase, timestamp);
+                    this.generateBlock(lastBlock, secretPhrase, timestamp);
                     return true;
                 } catch (BlockchainProcessor.TransactionNotAcceptedException e) {
                     if (Nxt.getEpochTime() - timestamp > 10) {
@@ -222,5 +224,54 @@ public final class Generator implements Comparable<Generator> {
         }
         return false;
     }
+
+    private void generateBlock(Block previousBlock, String secretPhrase, int blockTimestamp) throws BlockNotAcceptedException {
+
+        TransactionProcessorImpl transactionProcessor = TransactionProcessorImpl.getInstance();
+
+	SortedSet<UnconfirmedTransaction> sortedTransactions = transactionProcessor.assembleBlockTransactions();
+
+        List<Transaction> blockTransactions = new ArrayList<>();
+        for (UnconfirmedTransaction unconfirmedTransaction : sortedTransactions) {
+            blockTransactions.add(unconfirmedTransaction.getTransaction());
+        }
+
+        final byte[] publicKey = Crypto.getPublicKey(secretPhrase);
+
+	BlockNXTImpl block;
+
+        try {
+            /* block = new BlockImpl(getBlockVersion(previousBlock.getHeight()), blockTimestamp, previousBlock.getId(), totalAmountNQT, totalFeeNQT, payloadLength,
+                    payloadHash, publicKey, generationSignature, null, previousBlockHash, blockTransactions);
+		*/
+
+            block = new BlockNXTImpl(blockTimestamp, previousBlock, publicKey, blockTransactions);
+
+        } catch (NxtException.ValidationException e) {
+            // shouldn't happen because all transactions are already validated
+            Logger.logMessage("Error generating block", e);
+            return;
+        }
+
+        block.sign(secretPhrase);
+
+        try {
+            BlockchainProcessorImpl.getInstance().pushBlock(block);
+            //blockListeners.notify(block, Event.BLOCK_GENERATED);
+            Logger.logDebugMessage("Account " + Convert.toUnsignedLong(block.getGeneratorId()) + " generated block " + block.getStringId()
+                    + " at height " + block.getHeight());
+        } catch (TransactionNotAcceptedException e) {
+            Logger.logDebugMessage("Generate block failed: " + e.getMessage());
+            Transaction transaction = e.getTransaction();
+            Logger.logDebugMessage("Removing invalid transaction: " + transaction.getStringId());
+            transactionProcessor.removeUnconfirmedTransaction((TransactionImpl) transaction);
+            throw e;
+        } catch (BlockNotAcceptedException e) {
+            Logger.logDebugMessage("Generate block failed: " + e.getMessage());
+            throw e;
+        }
+    }
+
+
 
 }

@@ -179,6 +179,11 @@ class UnconfirmedTransaction implements Transaction {
     }
 
     @Override
+    public int getSize() {
+        return transaction.getSize();
+    }
+
+    @Override
     public byte[] getUnsignedBytes() {
         return transaction.getUnsignedBytes();
     }

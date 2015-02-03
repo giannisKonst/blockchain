@@ -31,6 +31,20 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import nxt.util.Filter;
+import nxt.db.FilteringIterator;
+
 final class TransactionProcessorImpl implements TransactionProcessor {
 
     private static final boolean enableTransactionRebroadcasting = Nxt.getBooleanProperty("nxt.enableTransactionRebroadcasting");
@@ -525,4 +539,105 @@ final class TransactionProcessorImpl implements TransactionProcessor {
         } // synchronized
     }
 
+    private static final Comparator<UnconfirmedTransaction> transactionArrivalComparator = new Comparator<UnconfirmedTransaction>() {
+        @Override
+        public int compare(UnconfirmedTransaction o1, UnconfirmedTransaction o2) {
+            int result = Long.compare(o1.getArrivalTimestamp(), o2.getArrivalTimestamp());
+            if (result != 0) {
+                return result;
+            }
+            result = Integer.compare(o1.getHeight(), o2.getHeight());
+            if (result != 0) {
+                return result;
+            }
+            return Long.compare(o1.getId(), o2.getId());
+        }
+    };
+
+    static boolean hasAllReferencedTransactions(Transaction transaction, int timestamp, int count) {
+        if (transaction.getReferencedTransactionFullHash() == null) {
+            return timestamp - transaction.getTimestamp() < 60 * 1440 * 60 && count < 10;
+        }
+        transaction = TransactionDb.findTransactionByFullHash(transaction.getReferencedTransactionFullHash());
+        return transaction != null && hasAllReferencedTransactions(transaction, timestamp, count + 1);
+    }
+
+    public SortedSet<UnconfirmedTransaction> assembleBlockTransactions() {
+
+        List<UnconfirmedTransaction> orderedUnconfirmedTransactions = new ArrayList<>();
+        try (FilteringIterator<UnconfirmedTransaction> unconfirmedTransactions = new FilteringIterator<>(getAllUnconfirmedTransactions(),
+                new Filter<UnconfirmedTransaction>() {
+                    @Override
+                    public boolean ok(UnconfirmedTransaction transaction) {
+                        return hasAllReferencedTransactions(transaction, transaction.getTimestamp(), 0);
+                    }
+                })) {
+            for (UnconfirmedTransaction unconfirmedTransaction : unconfirmedTransactions) {
+                orderedUnconfirmedTransactions.add(unconfirmedTransaction);
+            }
+        }
+
+        SortedSet<UnconfirmedTransaction> sortedTransactions = new TreeSet<>(transactionArrivalComparator);
+
+        Map<TransactionType, Map<String, Boolean>> duplicates = new HashMap<>();
+
+        //long totalAmountNQT = 0;
+        //long totalFeeNQT = 0;
+        int payloadLength = 0;
+
+        while (payloadLength <= Constants.MAX_PAYLOAD_LENGTH && sortedTransactions.size() <= Constants.MAX_NUMBER_OF_TRANSACTIONS) {
+
+            int prevNumberOfNewTransactions = sortedTransactions.size();
+
+            for (UnconfirmedTransaction unconfirmedTransaction : orderedUnconfirmedTransactions) {
+
+                int transactionLength = unconfirmedTransaction.getTransaction().getSize();
+                if (sortedTransactions.contains(unconfirmedTransaction) || payloadLength + transactionLength > Constants.MAX_PAYLOAD_LENGTH) {
+                    continue;
+                }
+
+                if (unconfirmedTransaction.getVersion() != this.getTransactionVersion(BlockchainImpl.getInstance().getHeight())) {
+                    continue;
+                }
+		
+		int blockTimestamp = Nxt.getEpochTime(); //TODO revisit this
+                if (unconfirmedTransaction.getTimestamp() > blockTimestamp + 15 || unconfirmedTransaction.getExpiration() < blockTimestamp) {
+                    continue;
+                }
+
+                try {
+                    unconfirmedTransaction.getTransaction().validate();
+                } catch (NxtException.NotCurrentlyValidException e) {
+                    continue;
+                } catch (NxtException.ValidationException e) {
+                    this.removeUnconfirmedTransaction(unconfirmedTransaction.getTransaction());
+                    continue;
+                }
+
+                if (unconfirmedTransaction.getTransaction().isDuplicate(duplicates)) {
+                    continue;
+                }
+
+                /*
+                if (!EconomicClustering.verifyFork(transaction)) {
+                    Logger.logDebugMessage("Including transaction that was generated on a fork: " + transaction.getStringId()
+                            + " ecBlockHeight " + transaction.getECBlockHeight() + " ecBlockId " + Convert.toUnsignedLong(transaction.getECBlockId()));
+                    //continue;
+                }
+                */
+
+                sortedTransactions.add(unconfirmedTransaction);
+                payloadLength += transactionLength;
+                //totalAmountNQT += unconfirmedTransaction.getAmountNQT();
+                //totalFeeNQT += unconfirmedTransaction.getFeeNQT();
+            }
+
+            if (sortedTransactions.size() == prevNumberOfNewTransactions) {
+                break;
+            }
+        }
+
+	return sortedTransactions;
+    }
+   
 }

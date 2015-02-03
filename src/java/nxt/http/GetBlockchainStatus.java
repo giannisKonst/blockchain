@@ -24,7 +24,7 @@ public final class GetBlockchainStatus extends APIServlet.APIRequestHandler {
         response.put("time", Nxt.getEpochTime());
         Block lastBlock = Nxt.getBlockchain().getLastBlock();
         response.put("lastBlock", lastBlock.getStringId());
-        response.put("cumulativeDifficulty", lastBlock.getCumulativeDifficulty().toString());
+        response.put("cumulativeDifficulty", ((BlockNXTImpl)lastBlock).getCumulativeDifficulty().toString()); //TODO
         response.put("numberOfBlocks", lastBlock.getHeight() + 1);
         BlockchainProcessor blockchainProcessor = Nxt.getBlockchainProcessor();
         Peer lastBlockchainFeeder = blockchainProcessor.getLastBlockchainFeeder();
