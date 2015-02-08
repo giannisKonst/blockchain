@@ -32,31 +32,29 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
     private final byte[] generatorPublicKey;
     private volatile long generatorId;
 
-	/*
     private BlockNXTImpl(int version, int timestamp, long previousBlockId, long totalAmountNQT, long totalFeeNQT, int payloadLength, byte[] payloadHash,
               byte[] generatorPublicKey, byte[] generationSignature, byte[] blockSignature, byte[] previousBlockHash, List<TransactionImpl> transactions)
             throws NxtException.ValidationException {
-	super(version, timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash, previousBlockHash, transactions);
+	super(timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash, previousBlockHash, transactions);
 
         this.generatorPublicKey = generatorPublicKey;
         this.generationSignature = generationSignature;
         this.blockSignature = blockSignature;
-    }*/
+    }
 
-/*
     BlockNXTImpl(int version, int timestamp, long previousBlockId, long totalAmountNQT, long totalFeeNQT, int payloadLength,
               byte[] payloadHash, byte[] generatorPublicKey, byte[] generationSignature, byte[] blockSignature,
               byte[] previousBlockHash, BigInteger cumulativeDifficulty, long baseTarget, long nextBlockId, int height, long id)
             throws NxtException.ValidationException {
         this(version, timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash,
                 generatorPublicKey, generationSignature, blockSignature, previousBlockHash, null);
+
         this.cumulativeDifficulty = cumulativeDifficulty;
         this.baseTarget = baseTarget;
         this.nextBlockId = nextBlockId;
         this.height = height;
         this.id = id;
     }
-*/
 
     BlockNXTImpl(int timestamp, Block previousBlock1, byte[] publicKey, List<Transaction> transactions) {
 	/* super(version, timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash,
@@ -69,7 +67,6 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
         digest.update(previousBlock.getGenerationSignature());
         byte[] generationSignature = digest.digest(publicKey);
 
-        BlockImpl block;
         byte[] previousBlockHash = previousBlock.getHash();
 
         this.version = 3;
@@ -85,16 +82,10 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
 
     @Override
     public long getId() {
-        if (id == 0) {
-            if (blockSignature == null) {
-                throw new IllegalStateException("Block is not signed yet");
-            }
-            byte[] hash = Crypto.sha256().digest(getBytes());
-            BigInteger bigInteger = new BigInteger(1, new byte[] {hash[7], hash[6], hash[5], hash[4], hash[3], hash[2], hash[1], hash[0]});
-            id = bigInteger.longValue();
-            stringId = bigInteger.toString();
+        if (blockSignature == null) {
+	    throw new IllegalStateException("Block is not signed yet");
         }
-        return id;
+        return super.getId();
     }
 
     @Override
@@ -124,25 +115,11 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
 
     @Override
     public JSONObject getJSONObject() { //for Peers
-        JSONObject json = new JSONObject();
+        JSONObject json = super.getJSONObject();
         json.put("version", version);
-        json.put("timestamp", timestamp);
-        json.put("previousBlock", Convert.toUnsignedLong(previousBlockId));
-        json.put("totalAmountNQT", totalAmountNQT);
-        json.put("totalFeeNQT", totalFeeNQT);
-        json.put("payloadLength", payloadLength);
-        json.put("payloadHash", Convert.toHexString(payloadHash));
         json.put("generatorPublicKey", Convert.toHexString(generatorPublicKey));
         json.put("generationSignature", Convert.toHexString(generationSignature));
-        if (version > 1) {
-            json.put("previousBlockHash", Convert.toHexString(previousBlockHash));
-        }
         json.put("blockSignature", Convert.toHexString(blockSignature));
-        JSONArray transactionsData = new JSONArray();
-        for (Transaction transaction : getTransactions()) {
-            transactionsData.add(transaction.getJSONObject());
-        }
-        json.put("transactions", transactionsData);
         return json;
     }
 
@@ -273,13 +250,10 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
     }
 
     @Override
-    void setPrevious(BlockImpl block1) {
+    void setPrevious(Block block1) {
+        super.setPrevious(block1);
         BlockNXTImpl block = (BlockNXTImpl) block1;
         if (block != null) {
-            if (block.getId() != getPreviousBlockId()) {
-                // shouldn't happen as previous id is already verified, but just in case
-                throw new IllegalStateException("Previous block id doesn't match");
-            }
             this.calculateBaseTarget(block);
         }
     }

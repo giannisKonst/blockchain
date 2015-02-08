@@ -4,7 +4,7 @@ import nxt.Account;
 import nxt.Block;
 import nxt.BlockchainProcessor;
 import nxt.Constants;
-import nxt.Generator;
+import nxt.GeneratorNXT;
 import nxt.Nxt;
 import nxt.Transaction;
 import nxt.TransactionProcessor;
@@ -487,9 +487,9 @@ public final class Users {
                 }
             }, BlockchainProcessor.Event.BLOCK_PUSHED);
 
-            Generator.addListener(new Listener<Generator>() {
+            GeneratorNXT.addListener(new Listener<GeneratorNXT>() {
                 @Override
-                public void notify(Generator generator) {
+                public void notify(GeneratorNXT generator) {
                     JSONObject response = new JSONObject();
                     response.put("response", "setBlockGenerationDeadline");
                     response.put("deadline", generator.getDeadline());
@@ -499,7 +499,7 @@ public final class Users {
                         }
                     }
                 }
-            }, Generator.Event.GENERATION_DEADLINE);
+            }, GeneratorNXT.Event.GENERATION_DEADLINE);
         }
 
     }

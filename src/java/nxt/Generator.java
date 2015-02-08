@@ -24,11 +24,7 @@ import nxt.BlockchainProcessor.BlockNotAcceptedException;
 import nxt.BlockchainProcessor.TransactionNotAcceptedException;
 
 
-public final class Generator implements Comparable<Generator> {
-
-    public static enum Event {
-        GENERATION_DEADLINE, START_FORGING, STOP_FORGING
-    }
+public abstract class Generator {
 
     private static final byte[] fakeForgingPublicKey;
     static {
@@ -42,236 +38,28 @@ public final class Generator implements Comparable<Generator> {
         fakeForgingPublicKey = publicKey;
     }
 
-    private static final Listeners<Generator,Event> listeners = new Listeners<>();
 
-    private static final ConcurrentMap<String, Generator> generators = new ConcurrentHashMap<>();
-    private static final Collection<Generator> allGenerators = Collections.unmodifiableCollection(generators.values());
-    private static volatile List<Generator> sortedForgers;
+    private static Generator generator;
 
-    private static final Runnable generateBlocksThread = new Runnable() {
-
-        private volatile int lastTimestamp;
-        private volatile long lastBlockId;
-
-        @Override
-        public void run() {
-
-            try {
-                try {
-                    int timestamp = Nxt.getEpochTime();
-                    if (timestamp == lastTimestamp) {
-                        return;
-                    }
-                    lastTimestamp = timestamp;
-                    synchronized (Nxt.getBlockchain()) {
-                        Block lastBlock = Nxt.getBlockchain().getLastBlock();
-                        if (lastBlock == null || lastBlock.getHeight() < Constants.LAST_KNOWN_BLOCK) {
-                            return;
-                        }
-                        if (lastBlock.getId() != lastBlockId || sortedForgers == null) {
-                            lastBlockId = lastBlock.getId();
-                            List<Generator> forgers = new ArrayList<>();
-                            for (Generator generator : generators.values()) {
-                                generator.setLastBlock(lastBlock);
-                                if (generator.effectiveBalance.signum() > 0) {
-                                    forgers.add(generator);
-                                }
-                            }
-                            Collections.sort(forgers);
-                            sortedForgers = Collections.unmodifiableList(forgers);
-                        }
-                        for (Generator generator : sortedForgers) {
-                            if (generator.getHitTime() > timestamp + 1 || generator.forge(lastBlock, timestamp)) {
-                                return;
-                            }
-                        }
-                    } // synchronized
-                } catch (Exception e) {
-                    Logger.logDebugMessage("Error in block generation thread", e);
-                }
-            } catch (Throwable t) {
-                Logger.logMessage("CRITICAL ERROR. PLEASE REPORT TO THE DEVELOPERS.\n" + t.toString());
-                t.printStackTrace();
-                System.exit(1);
-            }
-
-        }
-
-    };
-
-    static {
-        ThreadPool.scheduleThread("GenerateBlocks", generateBlocksThread, 500, TimeUnit.MILLISECONDS);
-    }
-
-    static void init() {}
-
-    public static boolean addListener(Listener<Generator> listener, Event eventType) {
-        return listeners.addListener(listener, eventType);
-    }
-
-    public static boolean removeListener(Listener<Generator> listener, Event eventType) {
-        return listeners.removeListener(listener, eventType);
-    }
-
-    public static Generator startForging(String secretPhrase) {
-        Generator generator = new Generator(secretPhrase);
-        Generator old = generators.putIfAbsent(secretPhrase, generator);
-        if (old != null) {
-            Logger.logDebugMessage("Account " + Convert.toUnsignedLong(old.getAccountId()) + " is already forging");
-            return old;
-        }
-        listeners.notify(generator, Event.START_FORGING);
-        Logger.logDebugMessage("Account " + Convert.toUnsignedLong(generator.getAccountId()) + " started forging, deadline "
-                + generator.getDeadline() + " seconds");
-        return generator;
-    }
-
-    public static Generator stopForging(String secretPhrase) {
-        Generator generator = generators.remove(secretPhrase);
-        if (generator != null) {
-            sortedForgers = null;
-            Logger.logDebugMessage("Account " + Convert.toUnsignedLong(generator.getAccountId()) + " stopped forging");
-            listeners.notify(generator, Event.STOP_FORGING);
+    public static synchronized Generator getInstance() {
+        if(generator == null) {
+            generator = new GeneratorNXT();
         }
         return generator;
     }
 
-    public static Generator getGenerator(String secretPhrase) {
-        return generators.get(secretPhrase);
-    }
+    public abstract void init(); //no need, use the constructor instead
+    public abstract void startForging(Block lastBlock); //null to resume
+    public abstract void pauseForging();
+    public abstract void onNewBlock(Listener<Block> listener); //replace old listener?
+    public abstract void setLastBlock(Block lastBlock);
+    public abstract void addTransaction(Transaction tx);
+    public abstract void setTransactions(List<Transaction> txs);
 
-    public static Collection<Generator> getAllGenerators() {
-        return allGenerators;
-    }
-
+    /*
     static boolean allowsFakeForging(byte[] publicKey) {
         return Constants.isTestnet && publicKey != null && Arrays.equals(publicKey, fakeForgingPublicKey);
-    }
-
-
-
-    private final long accountId;
-    private final String secretPhrase;
-    private final byte[] publicKey;
-    private volatile long hitTime;
-    private volatile BigInteger hit;
-    private volatile BigInteger effectiveBalance;
-
-    private Generator(String secretPhrase) {
-        this.secretPhrase = secretPhrase;
-        this.publicKey = Crypto.getPublicKey(secretPhrase);
-        this.accountId = Account.getId(publicKey);
-        if (Nxt.getBlockchain().getHeight() >= Constants.LAST_KNOWN_BLOCK) {
-            setLastBlock(Nxt.getBlockchain().getLastBlock());
-        }
-        sortedForgers = null;
-    }
-
-    public byte[] getPublicKey() {
-        return publicKey;
-    }
-
-    public long getAccountId() {
-        return accountId;
-    }
-
-    public long getDeadline() {
-        return Math.max(hitTime - Nxt.getBlockchain().getLastBlock().getTimestamp(), 0);
-    }
-
-    public long getHitTime() {
-        return hitTime;
-    }
-
-    @Override
-    public int compareTo(Generator g) {
-        int i = this.hit.multiply(g.effectiveBalance).compareTo(g.hit.multiply(this.effectiveBalance));
-        if (i != 0) {
-            return i;
-        }
-        return Long.compare(accountId, g.accountId);
-    }
-
-    @Override
-    public String toString() {
-        return "account: " + Convert.toUnsignedLong(accountId) + " deadline: " + getDeadline();
-    }
-
-    private void setLastBlock(Block lastBlock) {
-        Account account = Account.getAccount(accountId);
-        effectiveBalance = BigInteger.valueOf(account == null || account.getEffectiveBalanceNXT() <= 0 ? 0 : account.getEffectiveBalanceNXT());
-        if (effectiveBalance.signum() == 0) {
-            return;
-        }
-        hit = ProofOfNXT.getHit(publicKey, lastBlock);
-        hitTime = ProofOfNXT.getHitTime(effectiveBalance, hit, lastBlock);
-        listeners.notify(this, Event.GENERATION_DEADLINE);
-    }
-
-    private boolean forge(Block lastBlock, int timestamp) throws BlockchainProcessor.BlockNotAcceptedException {
-        if (ProofOfNXT.verifyHit(hit, effectiveBalance, lastBlock, timestamp)) {
-            while (true) {
-                try {
-                    //BlockchainProcessorImpl.getInstance().generateBlock(secretPhrase, timestamp);
-                    this.generateBlock(lastBlock, secretPhrase, timestamp);
-                    return true;
-                } catch (BlockchainProcessor.TransactionNotAcceptedException e) {
-                    if (Nxt.getEpochTime() - timestamp > 10) {
-                        throw e;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    private void generateBlock(Block previousBlock, String secretPhrase, int blockTimestamp) throws BlockNotAcceptedException {
-
-        TransactionProcessorImpl transactionProcessor = TransactionProcessorImpl.getInstance();
-
-	SortedSet<UnconfirmedTransaction> sortedTransactions = transactionProcessor.assembleBlockTransactions();
-
-        List<Transaction> blockTransactions = new ArrayList<>();
-        for (UnconfirmedTransaction unconfirmedTransaction : sortedTransactions) {
-            blockTransactions.add(unconfirmedTransaction.getTransaction());
-        }
-
-        final byte[] publicKey = Crypto.getPublicKey(secretPhrase);
-
-	BlockNXTImpl block;
-
-        try {
-            /* block = new BlockImpl(getBlockVersion(previousBlock.getHeight()), blockTimestamp, previousBlock.getId(), totalAmountNQT, totalFeeNQT, payloadLength,
-                    payloadHash, publicKey, generationSignature, null, previousBlockHash, blockTransactions);
-		*/
-
-            block = new BlockNXTImpl(blockTimestamp, previousBlock, publicKey, blockTransactions);
-
-        } catch (NxtException.ValidationException e) {
-            // shouldn't happen because all transactions are already validated
-            Logger.logMessage("Error generating block", e);
-            return;
-        }
-
-        block.sign(secretPhrase);
-
-        try {
-            BlockchainProcessorImpl.getInstance().pushBlock(block);
-            //blockListeners.notify(block, Event.BLOCK_GENERATED);
-            Logger.logDebugMessage("Account " + Convert.toUnsignedLong(block.getGeneratorId()) + " generated block " + block.getStringId()
-                    + " at height " + block.getHeight());
-        } catch (TransactionNotAcceptedException e) {
-            Logger.logDebugMessage("Generate block failed: " + e.getMessage());
-            Transaction transaction = e.getTransaction();
-            Logger.logDebugMessage("Removing invalid transaction: " + transaction.getStringId());
-            transactionProcessor.removeUnconfirmedTransaction((TransactionImpl) transaction);
-            throw e;
-        } catch (BlockNotAcceptedException e) {
-            Logger.logDebugMessage("Generate block failed: " + e.getMessage());
-            throw e;
-        }
-    }
-
+    }*/
 
 
 }

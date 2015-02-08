@@ -23,7 +23,7 @@ abstract class BlockImpl implements Block {
     final byte[] previousBlockHash;
     final long totalAmountNQT;
     final long totalFeeNQT;
-    volatile List<TransactionImpl> blockTransactions;
+    private volatile List<TransactionImpl> blockTransactions;
     final int payloadLength;
     final byte[] payloadHash;
 
@@ -36,13 +36,6 @@ abstract class BlockImpl implements Block {
     //Class childClass = BlockNXTImpl.class;
 
     BlockImpl(int timestamp, Block previousBlock, List<Transaction> transactions) throws NxtException.ValidationException {
-
-
-        if (payloadLength > Constants.MAX_PAYLOAD_LENGTH || payloadLength < 0) {
-            throw new NxtException.NotValidException("attempted to create a block with payloadLength " + payloadLength);
-        }
-
-
 
         this.timestamp = timestamp;
         this.previousBlockId = previousBlock.getId();
@@ -74,24 +67,41 @@ abstract class BlockImpl implements Block {
             this.totalFeeNQT = totalFeeNQT;
             this.payloadLength = payloadLength;
             this.payloadHash = payloadHash;
-        }
 
+	    if (payloadLength > Constants.MAX_PAYLOAD_LENGTH || payloadLength < 0) {
+	        throw new NxtException.NotValidException("attempted to create a block with payloadLength " + payloadLength);
+	    }
+        }
     }
 
-	/*
-    BlockImpl(int version, int timestamp, long previousBlockId, long totalAmountNQT, long totalFeeNQT, int payloadLength,
-              byte[] payloadHash, byte[] generatorPublicKey, byte[] generationSignature, byte[] blockSignature,
-              byte[] previousBlockHash, BigInteger cumulativeDifficulty, long baseTarget, long nextBlockId, int height, long id)
+    BlockImpl(int timestamp, long previousBlockId, long totalAmountNQT, long totalFeeNQT, int payloadLength, byte[] payloadHash, 
+              byte[] previousBlockHash, List<TransactionImpl> transactions)
             throws NxtException.ValidationException {
-        this(version, timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash,
-                generatorPublicKey, generationSignature, blockSignature, previousBlockHash, null);
-        this.cumulativeDifficulty = cumulativeDifficulty;
-        this.baseTarget = baseTarget;
+        //this(version, timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash,
+          //      generatorPublicKey, generationSignature, blockSignature, previousBlockHash, null);
+
+        this.timestamp = timestamp;
+        this.previousBlockId = previousBlockId;
+        this.totalAmountNQT = totalAmountNQT;
+        this.totalFeeNQT = totalFeeNQT;
+        this.payloadLength = payloadLength;
+        this.payloadHash = payloadHash;
+        this.previousBlockHash = previousBlockHash;
+
+        this.blockTransactions = transactions;
+    }
+
+    BlockImpl(int timestamp, long previousBlockId, long totalAmountNQT, long totalFeeNQT, int payloadLength, byte[] payloadHash, 
+              byte[] previousBlockHash, long nextBlockId, int height, long id)
+            throws NxtException.ValidationException {
+        this(timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash, previousBlockHash, null);
+
+        //this.cumulativeDifficulty = cumulativeDifficulty;
+        //this.baseTarget = baseTarget;
         this.nextBlockId = nextBlockId;
         this.height = height;
         this.id = id;
-    }*/
-
+    }
 
     @Override
     public int getTimestamp() {
@@ -154,7 +164,15 @@ abstract class BlockImpl implements Block {
     }
 
     @Override
-    abstract public long getId();
+    public long getId() {
+        if (id == 0) {
+            byte[] hash = Crypto.sha256().digest(getBytes());
+            BigInteger bigInteger = new BigInteger(1, new byte[] {hash[7], hash[6], hash[5], hash[4], hash[3], hash[2], hash[1], hash[0]});
+            id = bigInteger.longValue();
+            stringId = bigInteger.toString();
+        }
+        return id;
+    }
 
     @Override
     public String getStringId() {
@@ -178,10 +196,25 @@ abstract class BlockImpl implements Block {
     }
 
     @Override
-    abstract public JSONObject getJSONObject(); //for Peers
+    public JSONObject getJSONObject() { //for Peers
+        JSONObject json = new JSONObject();
+        json.put("timestamp", timestamp);
+        json.put("previousBlock", Convert.toUnsignedLong(previousBlockId));
+        json.put("totalAmountNQT", totalAmountNQT);
+        json.put("totalFeeNQT", totalFeeNQT);
+        json.put("payloadLength", payloadLength);
+        json.put("payloadHash", Convert.toHexString(payloadHash));
+        json.put("previousBlockHash", Convert.toHexString(previousBlockHash));
+        JSONArray transactionsData = new JSONArray();
+        for (Transaction transaction : getTransactions()) {
+            transactionsData.add(transaction.getJSONObject());
+        }
+        json.put("transactions", transactionsData);
+        return json;
+    }
 
-    @Override
-    abstract public JSONObject getJSONObject(boolean includeTransactions); //for http
+//    @Override
+//    abstract public JSONObject getJSONObject(boolean includeTransactions); //for http
 
     static BlockImpl parseBlock(JSONObject blockData) throws NxtException.ValidationException {
 	return BlockNXTImpl.parseBlock(blockData); //TODO
@@ -203,7 +236,7 @@ abstract class BlockImpl implements Block {
 
     abstract boolean verify();
 
-    void setPrevious(BlockImpl block) {
+    void setPrevious(Block block) {
         if (block != null) {
             if (block.getId() != getPreviousBlockId()) {
                 // shouldn't happen as previous id is already verified, but just in case

@@ -1,6 +1,6 @@
 package nxt.http;
 
-import nxt.Generator;
+import nxt.GeneratorNXT;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONStreamAware;
 
@@ -26,7 +26,7 @@ public final class StartForging extends APIServlet.APIRequestHandler {
             return MISSING_SECRET_PHRASE;
         }
 
-        Generator generator = Generator.startForging(secretPhrase);
+        GeneratorNXT generator = GeneratorNXT.startForging(secretPhrase);
         if (generator == null) {
             return UNKNOWN_ACCOUNT;
         }

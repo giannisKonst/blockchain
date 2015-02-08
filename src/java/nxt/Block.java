@@ -43,6 +43,15 @@ public interface Block {
 
     JSONObject getJSONObject(); //for Peers
 
-    JSONObject getJSONObject(boolean includeTransactions); //for http
+    //JSONObject getJSONObject(boolean includeTransactions); //for http
 
+/*
+*/
+    //TODO REMOVE
+    long getBaseTarget();
+    BigInteger getCumulativeDifficulty();
+    byte[] getBlockSignature();
+    byte[] getGenerationSignature();
+    byte[] getGeneratorPublicKey();
 }
+
