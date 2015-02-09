@@ -35,7 +35,7 @@ abstract class BlockImpl implements Block {
 
     //Class childClass = BlockNXTImpl.class;
 
-    BlockImpl(int timestamp, Block previousBlock, List<Transaction> transactions) throws NxtException.ValidationException {
+    BlockImpl(int timestamp, Block previousBlock, List<TransactionImpl> transactions) throws NxtException.ValidationException {
 
         this.timestamp = timestamp;
         this.previousBlockId = previousBlock.getId();
@@ -71,6 +71,8 @@ abstract class BlockImpl implements Block {
 	    if (payloadLength > Constants.MAX_PAYLOAD_LENGTH || payloadLength < 0) {
 	        throw new NxtException.NotValidException("attempted to create a block with payloadLength " + payloadLength);
 	    }
+        }else{
+            throw new NullPointerException("blockTransactions");
         }
     }
 

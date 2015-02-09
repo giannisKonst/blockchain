@@ -37,6 +37,7 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
             throws NxtException.ValidationException {
 	super(timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash, previousBlockHash, transactions);
 
+        this.version = 3;
         this.generatorPublicKey = generatorPublicKey;
         this.generationSignature = generationSignature;
         this.blockSignature = blockSignature;
@@ -56,7 +57,7 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
         this.id = id;
     }
 
-    BlockNXTImpl(int timestamp, Block previousBlock1, byte[] publicKey, List<Transaction> transactions) {
+    BlockNXTImpl(int timestamp, Block previousBlock1, byte[] publicKey, List<TransactionImpl> transactions) throws NxtException.ValidationException {
 	/* super(version, timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash,
               previousBlockHash, List<TransactionImpl> transactions); */
 	super(timestamp, previousBlock1, transactions);
@@ -70,7 +71,7 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
         byte[] previousBlockHash = previousBlock.getHash();
 
         this.version = 3;
-        this.generatorPublicKey = generatorPublicKey;
+        this.generatorPublicKey = publicKey;
         this.generationSignature = generationSignature;
         this.blockSignature = blockSignature;
     }
@@ -205,13 +206,13 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
 
     }
 
-    boolean verifyGenerationSignature() throws BlockchainProcessor.BlockOutOfOrderException {
+    boolean verifyGenerationSignature() {
 
         try {
 
             BlockNXTImpl previousBlock = (BlockNXTImpl) BlockchainImpl.getInstance().getBlock(getPreviousBlockId());
             if (previousBlock == null) {
-                throw new BlockchainProcessor.BlockOutOfOrderException("Can't verify signature because previous block is missing");
+                throw new RuntimeException("Can't verify signature because previous block is missing");
             }
 
             if (version == 1 && !Crypto.verify(generationSignature, previousBlock.generationSignature, generatorPublicKey, version >= 3)) {
@@ -286,7 +287,6 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
         }
     }
  
-   @Override
     public long getGeneratorId() {
         if (generatorId == 0) {
             generatorId = Account.getId(generatorPublicKey);
@@ -295,17 +295,18 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
     }
 
     boolean verify() {
+        /*
         if (!verifyGenerationSignature()) { // && !Generator.allowsFakeForging(block.getGeneratorPublicKey())
             throw new BlockchainProcessor.BlockNotAcceptedException("Generation signature verification failed");
         }
         if (!verifyBlockSignature()) {
             throw new BlockchainProcessor.BlockNotAcceptedException("Block signature verification failed");
-        }
+        }*/
 	/*
         if (currentBlock.getVersion() != getBlockVersion(blockchain.getHeight())) {
             throw new NxtException.NotValidException("Invalid block version");
         }*/
-	return true;
+        return verifyGenerationSignature() && verifyBlockSignature();
     }
 
     @Override
@@ -323,6 +324,7 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
     }
 
     public static Block getGenesisBlock() {
+        try {
 	    List<TransactionImpl> transactions = new ArrayList<>();
 	    for (int i = 0; i < Genesis.GENESIS_RECIPIENTS.length; i++) {
 		TransactionImpl transaction = new TransactionImpl.BuilderImpl((byte) 0, Genesis.CREATOR_PUBLIC_KEY,
@@ -349,5 +351,8 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
 	    }
 	    return new BlockNXTImpl(-1, 0, 0, Constants.MAX_BALANCE_NQT, 0, transactions.size() * 128, digest.digest(),
                     Genesis.CREATOR_PUBLIC_KEY, new byte[64], Genesis.GENESIS_BLOCK_SIGNATURE, null, transactions);
+        }catch(Exception e){
+            throw new Error("GenesisBlock");
+        }
     }
 }

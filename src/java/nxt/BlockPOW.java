@@ -26,10 +26,10 @@ public class BlockPOW extends BlockImpl {
     private BigInteger nonce = BigInteger.ZERO;
     private int timestamp;
     private BigInteger cumulativeDifficulty = BigInteger.ZERO;
-    private long baseTarget = Constants.INITIAL_BASE_TARGET;
+    private long baseTarget = 0;
 
 
-    BlockPOW(int timestamp, BlockPOW previousBlock, List<Transaction> transactions) {
+    BlockPOW(int timestamp, BlockPOW previousBlock, List<TransactionImpl> transactions) throws NxtException.ValidationException {
 	super(timestamp, previousBlock, transactions);
     }
 
@@ -107,8 +107,14 @@ public class BlockPOW extends BlockImpl {
             if( getHeight() % 2012 != 0){
                 baseTarget = previousBlock.baseTarget;
             }else{
-                //baseTarget = average of last 2012 blocks; //TODO
                 baseTarget = previousBlock.baseTarget;
+                //baseTarget = average of last 2012 blocks; //TODO
+                Blockchain chain = BlockchainImpl.getInstance();
+                synchronized (chain) {
+                    if(chain.getLastBlock().equals(this)) { 
+                    }else{
+                    }
+                }
             }
             cumulativeDifficulty = previousBlock.cumulativeDifficulty.add(Convert.two64.divide(BigInteger.valueOf(baseTarget)));
         //}
@@ -119,7 +125,16 @@ public class BlockPOW extends BlockImpl {
     }
  
     boolean verifyWork() {
-        return this.getHash() < baseTarget;
+        byte[] h = this.getHash();
+        byte[] lowHash = {h[0], h[1], h[2], h[3]};
+        BigInteger baseTarget = BigInteger.valueOf(this.baseTarget);
+        return  new BigInteger(lowHash).compareTo(baseTarget) == -1;
     }
+
+    public int getVersion(){throw new Error("develop");}
+    public  byte[] getBlockSignature(){throw new Error("develop");}
+    public long getGeneratorId() { throw new Error("develop"); }
+    public byte[] getGenerationSignature(){throw new Error("develop");}
+    public byte[] getGeneratorPublicKey(){throw new Error("develop");}
 
 }

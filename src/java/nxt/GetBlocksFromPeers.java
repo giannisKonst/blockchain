@@ -75,40 +75,23 @@ public class GetBlocksFromPeers implements Runnable {
                     if (!getMoreBlocks) {
                         return;
                     }
+                    List<Peer> connectedPublicPeers = Peers.getPublicPeers(Peer.State.CONNECTED, true);
+			/*
                     int numberOfForkConfirmations = blockchain.getHeight() > Constants.MONETARY_SYSTEM_BLOCK - 720 ?
                             defaultNumberOfForkConfirmations : Math.min(1, defaultNumberOfForkConfirmations);
-                    List<Peer> connectedPublicPeers = Peers.getPublicPeers(Peer.State.CONNECTED, true);
                     if (connectedPublicPeers.size() <= numberOfForkConfirmations) {
                         return;
-                    }
+                    }*/
+
                     peerHasMore = true;
                     final Peer peer = Peers.getWeightedPeer(connectedPublicPeers);
                     if (peer == null) {
                         return;
                     }
-                    JSONObject response = peer.send(getCumulativeDifficultyRequest);
-                    if (response == null) {
-                        return;
-                    }
 
-                    throw new RuntimeException("develop");/*
-                    BigInteger curCumulativeDifficulty = blockchain.getLastBlock().getCumulativeDifficulty();
-                    String peerCumulativeDifficulty = (String) response.get("cumulativeDifficulty");
-                    if (peerCumulativeDifficulty == null) {
+                    if( hasBetterChain(peer) == false ) {
                         return;
                     }
-                    BigInteger betterCumulativeDifficulty = new BigInteger(peerCumulativeDifficulty);
-                    if (betterCumulativeDifficulty.compareTo(curCumulativeDifficulty) < 0) {
-                        return;
-                    }
-                    if (response.get("blockchainHeight") != null) {
-                        lastBlockchainFeeder = peer;
-                        lastBlockchainFeederHeight = ((Long) response.get("blockchainHeight")).intValue();
-                    }
-                    if (betterCumulativeDifficulty.equals(curCumulativeDifficulty)) {
-                        return;
-                    }
-			*/
 
                     long commonMilestoneBlockId = Genesis.GENESIS_BLOCK_ID;
 
@@ -132,48 +115,6 @@ public class GetBlocksFromPeers implements Runnable {
                     synchronized (blockchain) {
                         long lastBlockId = blockchain.getLastBlock().getId();
                         downloadBlockchain(peer, commonBlock);
-
-                        if (blockchain.getHeight() - commonBlock.getHeight() <= 10) {
-                            return;
-                        }
-
-                        int confirmations = 0;
-                        for (Peer otherPeer : connectedPublicPeers) {
-                            if (confirmations >= numberOfForkConfirmations) {
-                                break;
-                            }
-                            if (peer.getPeerAddress().equals(otherPeer.getPeerAddress())) {
-                                continue;
-                            }
-                            long otherPeerCommonBlockId = getCommonBlockId(otherPeer, commonBlockId);
-                            if (otherPeerCommonBlockId == 0) {
-                                continue;
-                            }
-                            if (otherPeerCommonBlockId == blockchain.getLastBlock().getId()) {
-                                confirmations++;
-                                continue;
-                            }
-                            if (blockchain.getHeight() - blockchain.getBlock(otherPeerCommonBlockId).getHeight() >= 720) {
-                                continue;
-                            }
-                            String otherPeerCumulativeDifficulty;
-                            JSONObject otherPeerResponse = peer.send(getCumulativeDifficultyRequest);
-                            if (otherPeerResponse == null || (otherPeerCumulativeDifficulty = (String) response.get("cumulativeDifficulty")) == null) {
-                                continue;
-                            }
-                            if (new BigInteger(otherPeerCumulativeDifficulty).compareTo(blockchain.getLastBlock().getCumulativeDifficulty()) <= 0) {
-                                continue;
-                            }
-                            Logger.logDebugMessage("Found a peer with better difficulty");
-                            downloadBlockchain(otherPeer, commonBlock); // not otherPeerCommonBlock
-                        }
-                        Logger.logDebugMessage("Got " + confirmations + " confirmations");
-
-                        if (blockchain.getLastBlock().getId() != lastBlockId) {
-                            Logger.logDebugMessage("Downloaded " + (blockchain.getHeight() - commonBlock.getHeight()) + " blocks");
-                        } else {
-                            Logger.logDebugMessage("Did not accept peer's blocks, back to our own fork");
-                        }
                     } // synchronized
 
                 } catch (NxtException.StopException e) {
@@ -186,6 +127,31 @@ public class GetBlocksFromPeers implements Runnable {
                 t.printStackTrace();
                 System.exit(1);
             }
+
+        }
+
+        private boolean hasBetterChain(Peer peer) {
+            JSONObject response = peer.send(getCumulativeDifficultyRequest);
+            if (response == null) {
+                return false;
+            }
+
+            BigInteger myCumulativeDifficulty = ((BlockNXT)blockchain.getLastBlock()).getCumulativeDifficulty();
+            String peerCumulativeDifficulty = (String) response.get("cumulativeDifficulty");
+            if (peerCumulativeDifficulty == null) {
+                return false;
+            }
+            BigInteger betterCumulativeDifficulty = new BigInteger(peerCumulativeDifficulty);
+            return betterCumulativeDifficulty.compareTo(myCumulativeDifficulty) == 1;
+            /*
+            if (response.get("blockchainHeight") != null) {
+                lastBlockchainFeeder = peer;
+                lastBlockchainFeederHeight = ((Long) response.get("blockchainHeight")).intValue();
+            }
+            if (betterCumulativeDifficulty.equals(myCumulativeDifficulty)) {
+                return false;
+            }
+	    */
 
         }
 
@@ -393,7 +359,7 @@ public class GetBlocksFromPeers implements Runnable {
 
         }
 
-        private void pushBlock(final Block block) {
+        private void pushBlock(final Block block) throws BlockNotAcceptedException {
             chainProcessor.pushBlock((BlockImpl)block);
         }
 

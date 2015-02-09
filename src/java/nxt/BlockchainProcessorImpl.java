@@ -60,8 +60,8 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
     private volatile int lastTrimHeight;
 
     private final Listeners<Block, Event> blockListeners = new Listeners<>();
-    private volatile Peer lastBlockchainFeeder;
-    private volatile int lastBlockchainFeederHeight;
+    private volatile Peer lastBlockchainFeeder = null;
+    private volatile int lastBlockchainFeederHeight = 0;
 
 
     private volatile boolean isScanning;
@@ -256,14 +256,15 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
             return;
         }
         Logger.logMessage("Genesis block not in database, starting from scratch");
-        try {
+        //try {
             BlockImpl genesisBlock = (BlockImpl)BlockNXTImpl.getGenesisBlock(); //TODO
             genesisBlock.setPrevious(null);
             addBlock(genesisBlock);
+	/*
         } catch (NxtException.ValidationException e) {
             Logger.logMessage(e.getMessage());
             throw new RuntimeException(e.toString(), e);
-        }
+        }*/
     }
 
     public void pushBlock(final BlockImpl block) throws BlockNotAcceptedException {

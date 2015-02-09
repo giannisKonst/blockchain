@@ -89,7 +89,10 @@ public final class GeneratorNXT extends Generator implements Comparable<Generato
     private static Listener<Block> newBlockListener;
     private static final Listeners<GeneratorNXT,Event> listeners = new Listeners<>();
 
-    public GeneratorNXT() {
+    public GeneratorNXT() { //just as a factory for other generators  //TODO
+	accountId = 0;
+	secretPhrase = null;
+	publicKey = null;
     }
     public void init() {}
     public void startForging(Block lastBlock) {
@@ -232,7 +235,7 @@ public final class GeneratorNXT extends Generator implements Comparable<Generato
 
 	SortedSet<UnconfirmedTransaction> sortedTransactions = transactionProcessor.assembleBlockTransactions();
 
-        List<Transaction> blockTransactions = new ArrayList<>();
+        List<TransactionImpl> blockTransactions = new ArrayList<>();
         for (UnconfirmedTransaction unconfirmedTransaction : sortedTransactions) {
             blockTransactions.add(unconfirmedTransaction.getTransaction());
         }

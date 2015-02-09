@@ -17,8 +17,6 @@ public interface Block {
 
     int getTimestamp();
 
-    long getGeneratorId();
-
     long getPreviousBlockId();
 
     byte[] getPreviousBlockHash();
@@ -50,8 +48,9 @@ public interface Block {
     //TODO REMOVE
     long getBaseTarget();
     BigInteger getCumulativeDifficulty();
-    byte[] getBlockSignature();
-    byte[] getGenerationSignature();
-    byte[] getGeneratorPublicKey();
+//    byte[] getBlockSignature();
+    long getGeneratorId();
+//    byte[] getGenerationSignature();
+//    byte[] getGeneratorPublicKey();
 }
 
