@@ -242,16 +242,16 @@ final class JSONData {
         JSONObject json = new JSONObject();
         json.put("block", block.getStringId());
         json.put("height", block.getHeight());
-        putAccount(json, "generator", block.getGeneratorId());
-        json.put("generatorPublicKey", Convert.toHexString(block.getGeneratorPublicKey()));
+        //putAccount(json, "generator", block.getGeneratorId());
+        //json.put("generatorPublicKey", Convert.toHexString(block.getGeneratorPublicKey()));
         json.put("timestamp", block.getTimestamp());
         json.put("numberOfTransactions", block.getTransactions().size());
         json.put("totalAmountNQT", String.valueOf(block.getTotalAmountNQT()));
         json.put("totalFeeNQT", String.valueOf(block.getTotalFeeNQT()));
         json.put("payloadLength", block.getPayloadLength());
-        json.put("version", block.getVersion());
-        json.put("baseTarget", Convert.toUnsignedLong(block.getBaseTarget()));
-        json.put("cumulativeDifficulty", block.getCumulativeDifficulty().toString());
+        //json.put("version", block.getVersion());
+        //json.put("baseTarget", Convert.toUnsignedLong(block.getBaseTarget()));
+        //json.put("cumulativeDifficulty", block.getCumulativeDifficulty().toString());
         if (block.getPreviousBlockId() != 0) {
             json.put("previousBlock", Convert.toUnsignedLong(block.getPreviousBlockId()));
         }
@@ -259,11 +259,11 @@ final class JSONData {
             json.put("nextBlock", Convert.toUnsignedLong(block.getNextBlockId()));
         }
         json.put("payloadHash", Convert.toHexString(block.getPayloadHash()));
-        json.put("generationSignature", Convert.toHexString(block.getGenerationSignature()));
-        if (block.getVersion() > 1) {
+        //json.put("generationSignature", Convert.toHexString(block.getGenerationSignature()));
+        //if (block.getVersion() > 1) {
             json.put("previousBlockHash", Convert.toHexString(block.getPreviousBlockHash()));
-        }
-        json.put("blockSignature", Convert.toHexString(block.getBlockSignature()));
+        //}
+        //json.put("blockSignature", Convert.toHexString(block.getBlockSignature()));
         JSONArray transactions = new JSONArray();
         for (Transaction transaction : block.getTransactions()) {
             transactions.add(includeTransactions ? transaction(transaction) : Convert.toUnsignedLong(transaction.getId()));

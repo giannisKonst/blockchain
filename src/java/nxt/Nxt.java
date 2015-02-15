@@ -1,6 +1,6 @@
 package nxt;
 
-//import nxt.http.API;
+import nxt.http.API;
 import nxt.peer.Peers;
 import nxt.user.Users;
 import nxt.util.Logger;
@@ -158,7 +158,7 @@ public final class Nxt {
 
     public static void shutdown() {
         Logger.logShutdownMessage("Shutting down...");
-        //API.shutdown(); //TODO
+        API.shutdown();
         Users.shutdown();
         Peers.shutdown();
         ThreadPool.shutdown();
@@ -196,7 +196,7 @@ public final class Nxt {
                 Exchange.init();
                 Peers.init();
                 Generator.getInstance().init();
-                //API.init(); //TODO
+                API.init(); //TODO
                 Users.init();
                 DebugTrace.init();
                 int timeMultiplier = (Constants.isTestnet && Constants.isOffline) ? Math.max(Nxt.getIntProperty("nxt.timeMultiplier"), 1) : 1;

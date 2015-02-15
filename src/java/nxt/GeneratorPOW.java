@@ -28,7 +28,8 @@ public final class GeneratorPOW extends Generator {
 
     private Listener<Block> newBlockListener;
     private Block lastBlock;
-    private List<Transaction> transactions;
+    private List<TransactionImpl> transactions = new ArrayList<>();
+    private volatile boolean stop = true;
 
     //private BigInteger nonce = 0; //should need persistance
     private BlockPOW block;
@@ -36,11 +37,15 @@ public final class GeneratorPOW extends Generator {
     public GeneratorPOW() {
     }
 
-    public void init() {}
+    public void init() {
+        ThreadPool.scheduleThread("GenerateBlocks", generateBlocksTask, 500, TimeUnit.MILLISECONDS);
+    }
 
     public void startForging(Block lastBlock) {
-        this.lastBlock = lastBlock;
-        ThreadPool.scheduleThread("GenerateBlocks", generateBlocksThread, 500, TimeUnit.MILLISECONDS);
+        if(lastBlock==null){ throw new Error(); }
+        setLastBlock(lastBlock);
+
+        stop = false;
     }
 
     public void pauseForging() {
@@ -50,33 +55,54 @@ public final class GeneratorPOW extends Generator {
         this.newBlockListener = listener;
     }
 
-    public void setLastBlock(Block lastBlock) {
-        this.lastBlock = lastBlock;
-        block.setPrevious(lastBlock);
+    private int getValidTimestamp(){
+            int timestamp = Nxt.getEpochTime();
+            if(timestamp <= ((BlockPOW)lastBlock).getTimestamp()){
+                timestamp = 1 + lastBlock.getTimestamp();
+            }
+            return timestamp;
     }
 
-    public void addTransaction(Transaction tx) {
+    public void setLastBlock(Block lastBlock) {
+        this.lastBlock = lastBlock;
+        try{
+            block = new BlockPOW(getValidTimestamp(), lastBlock, transactions);
+        }catch(NxtException.ValidationException e){
+            e.printStackTrace();
+            throw new Error();
+        }
+    }
+
+    public void addTransaction(TransactionImpl tx) {
         transactions.add(tx);
     }
-    public void setTransactions(List<Transaction> txs) {
+    public void setTransactions(List<TransactionImpl> txs) {
         transactions = txs;
     }
 
-    private final Runnable generateBlocksThread = new Runnable() {
+    private final Runnable generateBlocksTask = new Runnable() {
 
         private volatile int lastTimestamp;
         private volatile long lastBlockId;
 
         @Override
         public void run() {
-
+            //if(true)return;
+            //if(true)throw new Error("test");
+            if(stop){ return; }
+            //System.out.println("generateBlocksTask");
             try {
                 try {
-                    int timestamp = Nxt.getEpochTime();
-                    block.getHash();
+                    //Logger.logDebugMessage("LAST "+lastBlock.getJSONObject());
                     if(block.verifyWork()) {
+                        Logger.logDebugMessage("NEW BLOCK "+block.getJSONObject());
+                        //Logger.logDebugMessage("NEW BLOCK hash="+Convert.toHexString(block.getHash()));
                         newBlockListener.notify(block);
                         setLastBlock(block);
+                    }else{
+                        Logger.logDebugMessage("CUR "+block.getJSONObject());
+                        block.incNonce();
+                        block.setTimestamp(getValidTimestamp());
                     }
                 } catch (Exception e) {
                     Logger.logDebugMessage("Error in block generation thread", e);

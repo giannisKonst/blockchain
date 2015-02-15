@@ -253,12 +253,13 @@ public final class APIServlet extends HttpServlet {
 
             long startTime = System.currentTimeMillis();
 
-			if (! API.isAllowed(req.getRemoteHost())) {
+            if (! API.isAllowed(req.getRemoteHost())) {
                 response = ERROR_NOT_ALLOWED;
                 return;
             }
 
             String requestType = req.getParameter("requestType");
+            Logger.logDebugMessage("API request: "+requestType);
             if (requestType == null) {
                 response = ERROR_INCORRECT_REQUEST;
                 return;
@@ -298,6 +299,9 @@ public final class APIServlet extends HttpServlet {
             } catch (ExceptionInInitializerError err) {
                 Logger.logErrorMessage("Initialization Error", (Exception) err.getCause());
                 response = ERROR_INCORRECT_REQUEST;
+            } catch (Throwable err) {
+                Logger.logDebugMessage("Error processing API request", err);
+                response = ERROR_INCORRECT_REQUEST;
             } finally {
                 if (apiRequestHandler.startDbTransaction()) {
                     Db.db.endTransaction();
@@ -313,6 +317,7 @@ public final class APIServlet extends HttpServlet {
             try (Writer writer = resp.getWriter()) {
                 response.writeJSONString(writer);
             }
+            Logger.logDebugMessage("API response: "+response);
         }
 
     }

@@ -42,6 +42,18 @@ final class BlockDb {
         }
     }
 
+    static boolean hasBlockAtHeight(int height) {
+        try (Connection con = Db.db.getConnection();
+             PreparedStatement pstmt = con.prepareStatement("SELECT 1 FROM block WHERE height = ?")) {
+            pstmt.setLong(1, height);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e.toString(), e);
+        }
+    }
+
     static long findBlockIdAtHeight(int height) {
         try (Connection con = Db.db.getConnection();
              PreparedStatement pstmt = con.prepareStatement("SELECT id FROM block WHERE height = ?")) {
@@ -79,7 +91,7 @@ final class BlockDb {
 
     static BlockImpl findLastBlock() {
         try (Connection con = Db.db.getConnection();
-             PreparedStatement pstmt = con.prepareStatement("SELECT * FROM block ORDER BY timestamp DESC LIMIT 1")) {
+             PreparedStatement pstmt = con.prepareStatement("SELECT * FROM block ORDER BY height DESC LIMIT 1")) {
             BlockImpl block = null;
             try (ResultSet rs = pstmt.executeQuery()) {
                 if (rs.next()) {
@@ -114,6 +126,42 @@ final class BlockDb {
 
     static BlockImpl loadBlock(Connection con, ResultSet rs) throws NxtException.ValidationException {
         try {
+            return loadBlockPOW(con, rs);
+        } catch (SQLException e) {
+            throw new RuntimeException(e.toString(), e);
+        }
+
+    }
+
+    static BlockImpl loadBlockPOW(Connection con, ResultSet rs) throws SQLException, NxtException.ValidationException {
+            System.out.println("loadBlockPOW");
+            //int version = rs.getInt("version");
+            int timestamp = rs.getInt("timestamp");
+            long previousBlockId = rs.getLong("previous_block_id");
+            long totalAmountNQT = rs.getLong("total_amount");
+            long totalFeeNQT = rs.getLong("total_fee");
+            int payloadLength = rs.getInt("payload_length");
+            //byte[] generatorPublicKey = rs.getBytes("generator_public_key");
+            byte[] previousBlockHash = rs.getBytes("previous_block_hash");
+            long nextBlockId = rs.getLong("next_block_id");
+            int height = rs.getInt("height");
+            //byte[] generationSignature = rs.getBytes("generation_signature");
+            //byte[] blockSignature = rs.getBytes("block_signature");
+            byte[] payloadHash = rs.getBytes("payload_hash");
+            long id = rs.getLong("id");
+
+            long nonce = rs.getLong("nonce");
+            BigInteger cumulativeDifficulty = new BigInteger(rs.getBytes("cumulative_difficulty"));
+            long baseTarget = rs.getLong("base_target");
+
+            System.out.println("loadBlockPOW1");
+            BlockImpl block = new BlockPOW(timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash, previousBlockHash,
+                    nextBlockId, height, id, nonce, cumulativeDifficulty, baseTarget);
+            System.out.println("loadBlockPOW2 "+block);
+            return block;
+    }
+
+    static BlockImpl loadBlockNXT(Connection con, ResultSet rs) throws SQLException, NxtException.ValidationException {
             int version = rs.getInt("version");
             int timestamp = rs.getInt("timestamp");
             long previousBlockId = rs.getLong("previous_block_id");
@@ -130,21 +178,35 @@ final class BlockDb {
             byte[] blockSignature = rs.getBytes("block_signature");
             byte[] payloadHash = rs.getBytes("payload_hash");
             long id = rs.getLong("id");
+
             return new BlockNXTImpl(version, timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash,
                     generatorPublicKey, generationSignature, blockSignature, previousBlockHash,
                     cumulativeDifficulty, baseTarget, nextBlockId, height, id);
+    }
+
+    static void saveBlock(Connection con, BlockImpl block) {
+        try {
+            if(block instanceof BlockNXTImpl) {  //TODO
+                saveBlock(con, (BlockNXTImpl) block);
+            }else if(block instanceof BlockPOW){
+                saveBlock(con, (BlockPOW) block);
+            }else{
+                throw new RuntimeException("developing");
+            }
+
+            if (block.getPreviousBlockId() != 0) {
+                try (PreparedStatement pstmt = con.prepareStatement("UPDATE block SET next_block_id = ? WHERE id = ?")) {
+                    pstmt.setLong(1, block.getId());
+                    pstmt.setLong(2, block.getPreviousBlockId());
+                    pstmt.executeUpdate();
+                }
+            }
         } catch (SQLException e) {
             throw new RuntimeException(e.toString(), e);
         }
     }
 
-    static void saveBlock(Connection con, BlockImpl block1) {
-        try {
-            if(block1 instanceof BlockNXTImpl == false) {  //TODO
-                throw new RuntimeException("developing");
-            }
-            BlockNXTImpl block = (BlockNXTImpl) block1;
-
+    static void saveBlock(Connection con, BlockNXTImpl block) throws SQLException {
             try (PreparedStatement pstmt = con.prepareStatement("INSERT INTO block (id, version, timestamp, previous_block_id, "
                     + "total_amount, total_fee, payload_length, generator_public_key, previous_block_hash, cumulative_difficulty, "
                     + "base_target, height, generation_signature, block_signature, payload_hash, generator_id) "
@@ -169,16 +231,37 @@ final class BlockDb {
                 pstmt.executeUpdate();
                 TransactionDb.saveTransactions(con, block.getTransactions());
             }
-            if (block.getPreviousBlockId() != 0) {
-                try (PreparedStatement pstmt = con.prepareStatement("UPDATE block SET next_block_id = ? WHERE id = ?")) {
-                    pstmt.setLong(1, block.getId());
-                    pstmt.setLong(2, block.getPreviousBlockId());
-                    pstmt.executeUpdate();
-                }
+    }
+
+    static void saveBlock(Connection con, BlockPOW block) throws SQLException {
+            try (PreparedStatement pstmt = con.prepareStatement("INSERT INTO block (id, version, timestamp, previous_block_id, "
+                    + "total_amount, total_fee, payload_length, generator_public_key, previous_block_hash, cumulative_difficulty, "
+                    + "base_target, height, generation_signature, block_signature, payload_hash, generator_id, nonce) "
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                byte[] zero = new byte[32];
+                int i = 0;
+                pstmt.setLong(++i, block.getId());
+                pstmt.setInt(++i, 0); //version
+                pstmt.setInt(++i, block.getTimestamp());
+                DbUtils.setLongZeroToNull(pstmt, ++i, block.getPreviousBlockId());
+                pstmt.setLong(++i, block.getTotalAmountNQT());
+                pstmt.setLong(++i, block.getTotalFeeNQT());
+                pstmt.setInt(++i, block.getPayloadLength());
+                pstmt.setBytes(++i, zero); //generatorPublicKey
+                pstmt.setBytes(++i, block.getPreviousBlockHash());//
+                pstmt.setBytes(++i, block.getCumulativeDifficulty().toByteArray());
+                pstmt.setLong(++i, block.getBaseTarget());
+                pstmt.setInt(++i, block.getHeight());
+                pstmt.setBytes(++i, zero); //generationSignature
+                pstmt.setBytes(++i, zero); //blockSignature
+                pstmt.setBytes(++i, block.getPayloadHash());
+                pstmt.setLong(++i, 0); //generatorId
+                pstmt.setLong(++i, block.getNonce());
+                pstmt.executeUpdate();
+                TransactionDb.saveTransactions(con, block.getTransactions());
+                System.out.println(pstmt);
+                System.out.println(block.getHeight());
             }
-        } catch (SQLException e) {
-            throw new RuntimeException(e.toString(), e);
-        }
     }
 
     // relying on cascade triggers in the database to delete the transactions for all deleted blocks

@@ -23,15 +23,34 @@ import java.util.Comparator;
 
 public class BlockPOW extends BlockImpl {
 
-    private BigInteger nonce = BigInteger.ZERO;
-    private int timestamp;
+    //private BigInteger nonce = BigInteger.ZERO;
+    private long nonce = 0; //TODO max nonce=?
+    //private int timestamp = Nxt.getEpochTime();
     private BigInteger cumulativeDifficulty = BigInteger.ZERO;
-    private long baseTarget = 0;
+    private long baseTarget;
 
 
-    BlockPOW(int timestamp, BlockPOW previousBlock, List<TransactionImpl> transactions) throws NxtException.ValidationException {
-	super(timestamp, previousBlock, transactions);
+    BlockPOW(int timestamp, Block previousBlock_, List<TransactionImpl> transactions) throws NxtException.ValidationException {
+	super(timestamp, previousBlock_, transactions);
+
+        BlockPOW previousBlock = (BlockPOW)previousBlock_;
+        this.calculateBaseTarget(previousBlock);
+        this.timestamp = Nxt.getEpochTime();
+        if(this.timestamp <= previousBlock.timestamp){ //TODO should this check -- fix the callers properly
+          //throw new RuntimeException("wrong timestamp");
+          this.timestamp++;
+        }
     }
+
+    BlockPOW(int timestamp, long previousBlockId, long totalAmountNQT, long totalFeeNQT, int payloadLength, byte[] payloadHash, 
+              byte[] previousBlockHash, long nextBlockId, int height, long id, long nonce, BigInteger cumulativeDifficulty, long baseTarget)
+              throws NxtException.ValidationException {
+       super(timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash, 
+               previousBlockHash, nextBlockId, height, id);
+       this.nonce = nonce;
+       this.cumulativeDifficulty = cumulativeDifficulty;
+       this.baseTarget = baseTarget;
+   }
 
     @Override
     public byte[] getHash() {
@@ -46,34 +65,35 @@ public class BlockPOW extends BlockImpl {
         return cumulativeDifficulty;
     }
 
-    public void incNonce() {
-        nonce = nonce.add(BigInteger.ONE);
+    public int getTimestamp() {
+        return timestamp;
     }
 
-	/*
+    public void setTimestamp(int timestamp) {
+        this.timestamp = timestamp;
+    }
+
+    public long getNonce() {
+        return nonce;
+    }
+
+    public void incNonce() {
+        //nonce = nonce.add(BigInteger.ONE);
+        nonce++;
+    }
+
+
     @Override
     public JSONObject getJSONObject() { //for Peers
-        JSONObject json = new JSONObject();
-        json.put("version", version);
-        json.put("timestamp", timestamp);
-        json.put("previousBlock", Convert.toUnsignedLong(previousBlockId));
-        json.put("totalAmountNQT", totalAmountNQT);
-        json.put("totalFeeNQT", totalFeeNQT);
-        json.put("payloadLength", payloadLength);
-        json.put("payloadHash", Convert.toHexString(payloadHash));
-        json.put("generatorPublicKey", Convert.toHexString(generatorPublicKey));
-        json.put("generationSignature", Convert.toHexString(generationSignature));
-        if (version > 1) {
-            json.put("previousBlockHash", Convert.toHexString(previousBlockHash));
-        }
-        json.put("blockSignature", Convert.toHexString(blockSignature));
-        JSONArray transactionsData = new JSONArray();
-        for (Transaction transaction : getTransactions()) {
-            transactionsData.add(transaction.getJSONObject());
-        }
-        json.put("transactions", transactionsData);
+        JSONObject json = super.getJSONObject();
+        json.put("nonce", nonce);
+
+        //FOR DEBUG ONLY
+        json.put("baseTarget", baseTarget);
+        json.put("nonce", nonce);
+        json.put("height", height);
         return json;
-    }*/
+    }
 
     /*
     public JSONObject getJSONObject() {
@@ -81,7 +101,7 @@ public class BlockPOW extends BlockImpl {
     }*/
 
     public byte[] getBytes() {
-        ByteBuffer buffer = ByteBuffer.allocate( 4 + 8 + 4 + (8 + 8) + 4 + 32 );
+        ByteBuffer buffer = ByteBuffer.allocate( 4 + 8 + 4 + (8 + 8) + 4 + 32 + 32 + 64);
         buffer.order(ByteOrder.LITTLE_ENDIAN);
         buffer.putInt(timestamp);
         buffer.putLong(previousBlockId);
@@ -91,16 +111,19 @@ public class BlockPOW extends BlockImpl {
         buffer.putInt(payloadLength);
         buffer.put(payloadHash);
         buffer.put(previousBlockHash);
+        buffer.putLong(nonce);
         return buffer.array();
     }
 
+    /*
     @Override
     void setPrevious(Block block1) {
+        super.setPrevious(block1);
         BlockPOW block = (BlockPOW) block1;
         if (block != null) {
             this.calculateBaseTarget(block);
         }
-    }
+    }*/
 
     private void calculateBaseTarget(BlockPOW previousBlock) {
         //if (this.getId() != Genesis.GENESIS_BLOCK_ID || previousBlockId != 0) {
@@ -116,6 +139,7 @@ public class BlockPOW extends BlockImpl {
                     }
                 }
             }
+            System.out.println("baseTarget="+baseTarget);
             cumulativeDifficulty = previousBlock.cumulativeDifficulty.add(Convert.two64.divide(BigInteger.valueOf(baseTarget)));
         //}
     }
@@ -128,7 +152,43 @@ public class BlockPOW extends BlockImpl {
         byte[] h = this.getHash();
         byte[] lowHash = {h[0], h[1], h[2], h[3]};
         BigInteger baseTarget = BigInteger.valueOf(this.baseTarget);
-        return  new BigInteger(lowHash).compareTo(baseTarget) == -1;
+        BigInteger hit = new BigInteger(1, lowHash);
+        System.out.println("hit="+hit);
+        System.out.println("target="+baseTarget);
+        return  hit.compareTo(baseTarget) == -1;
+    }
+
+    boolean verify(Block previousBlock) {
+        return super.verify(previousBlock);
+    }
+
+    private BlockPOW(List<TransactionImpl> txs) throws Exception { //GENESIS BLOCK
+        super(0, null, txs);
+        baseTarget = Long.MAX_VALUE / 2;
+    }
+
+    public static Block getGenesisBlock() {
+        try {
+	    List<TransactionImpl> transactions = new ArrayList<>();
+	    for (int i = 0; i < Genesis.GENESIS_RECIPIENTS.length; i++) {
+		TransactionImpl transaction = new TransactionImpl.BuilderImpl((byte) 0, Genesis.CREATOR_PUBLIC_KEY,
+			Genesis.GENESIS_AMOUNTS[i] * Constants.ONE_NXT, 0, (short) 0,
+			Attachment.ORDINARY_PAYMENT)
+			.timestamp(0)
+			.recipientId(Genesis.GENESIS_RECIPIENTS[i])
+			.height(0)
+			.ecBlockHeight(0)
+			.ecBlockId(0)
+			.build();
+                transaction.sign(Genesis.secret);
+		transactions.add(transaction);
+	    }
+
+            return new BlockPOW(transactions);
+        }catch(Exception e){
+            e.printStackTrace();
+            throw new Error("GenesisBlock");
+        }
     }
 
     public int getVersion(){throw new Error("develop");}

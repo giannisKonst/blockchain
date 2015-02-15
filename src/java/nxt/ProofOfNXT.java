@@ -19,12 +19,12 @@ import java.util.List;
 public class ProofOfNXT /*implements Proof*/ {
 
 	long proof;
-	BlockNXT block;
+	BlockNXTImpl block;
 
 	private ProofOfNXT() {};
 
 /*
-	public ProofOfNXT(BlockNXT block) {
+	public ProofOfNXT(BlockNXTImpl block) {
 		this.block = block;
 	}
 
@@ -35,7 +35,7 @@ public class ProofOfNXT /*implements Proof*/ {
 */	
 
     static public boolean verifyHit(BigInteger hit, BigInteger effectiveBalance, Block previousBlock1, int timestamp) {
-	BlockNXT previousBlock = (BlockNXT)previousBlock1;
+	BlockNXTImpl previousBlock = (BlockNXTImpl)previousBlock1;
         int elapsedTime = timestamp - previousBlock.getTimestamp();
         if (elapsedTime <= 0) {
             return false;
@@ -57,7 +57,7 @@ public class ProofOfNXT /*implements Proof*/ {
 	}
 
     static BigInteger getHit(byte[] publicKey, Block block1) {
-	BlockNXT block = (BlockNXT) block1;
+	BlockNXTImpl block = (BlockNXTImpl) block1;
 	/*if (allowsFakeForging(publicKey)) {
             return BigInteger.ZERO;
         }*/
@@ -71,12 +71,12 @@ public class ProofOfNXT /*implements Proof*/ {
     }
 
     static long getHitTime(Account account, Block block1) {
-	BlockNXT block = (BlockNXT) block1;
+	BlockNXTImpl block = (BlockNXTImpl) block1;
         return getHitTime(BigInteger.valueOf(account.getEffectiveBalanceNXT()), getHit(account.getPublicKey(), block), block);
     }
 
     static long getHitTime(BigInteger effectiveBalance, BigInteger hit, Block block1) {
-	BlockNXT block = (BlockNXT) block1;
+	BlockNXTImpl block = (BlockNXTImpl) block1;
         return block.getTimestamp()
                 + hit.divide(BigInteger.valueOf(block.getBaseTarget()).multiply(effectiveBalance)).longValue();
     }

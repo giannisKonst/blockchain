@@ -68,6 +68,7 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
     private volatile boolean alreadyInitialized = false;
 
     private final GetBlocksFromPeers getMoreBlocksThread = new GetBlocksFromPeers();
+    private final Generator generator = Generator.getInstance();
 
     private BlockchainProcessorImpl() {
 
@@ -158,6 +159,19 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
 
         ThreadPool.scheduleThread("GetMoreBlocks", getMoreBlocksThread, 1);
 
+		
+	generator.onNewBlock(new Listener<Block>() {
+	    @Override
+	    public void notify(Block block) {
+	        try{
+	            pushBlock((BlockImpl)block);
+	        }catch(BlockNotAcceptedException e){
+	            e.printStackTrace();
+	            throw new Error(); //TODO
+	        }
+	    }
+	});
+
     }
 
     @Override
@@ -239,6 +253,7 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
     }
 
     private void addBlock(BlockImpl block) {
+        Logger.logDebugMessage("addBlock");
         try (Connection con = Db.db.getConnection()) {
             BlockDb.saveBlock(con, block);
             blockchain.setLastBlock(block);
@@ -248,16 +263,16 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
     }
 
     private void addGenesisBlock() {
-        if (BlockDb.hasBlock(Genesis.GENESIS_BLOCK_ID)) {
+        if (BlockDb.hasBlockAtHeight(0)) {
             Logger.logMessage("Genesis block already in database");
             BlockImpl lastBlock = BlockDb.findLastBlock();
+            Logger.logMessage("Last block: " + lastBlock.getJSONObject());
             blockchain.setLastBlock(lastBlock);
             Logger.logMessage("Last block height: " + lastBlock.getHeight());
-            return;
-        }
-        Logger.logMessage("Genesis block not in database, starting from scratch");
+        }else{
+            Logger.logMessage("Genesis block not in database, starting from scratch");
         //try {
-            BlockImpl genesisBlock = (BlockImpl)BlockNXTImpl.getGenesisBlock(); //TODO
+            BlockImpl genesisBlock = (BlockImpl)BlockPOW.getGenesisBlock(); //TODO
             genesisBlock.setPrevious(null);
             addBlock(genesisBlock);
 	/*
@@ -265,6 +280,8 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
             Logger.logMessage(e.getMessage());
             throw new RuntimeException(e.toString(), e);
         }*/
+        }
+        //generator.startForging(blockchain.getLastBlock());
     }
 
     public void pushBlock(final BlockImpl block) throws BlockNotAcceptedException {
@@ -278,10 +295,12 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
                 Db.db.beginTransaction();
                 previousLastBlock = blockchain.getLastBlock();
 
+
+                /*
                 if (previousLastBlock.getId() != block.getPreviousBlockId()) {
                     throw new BlockOutOfOrderException("Previous block id doesn't match");
                 }
-
+		
                 if (block.getVersion() != getBlockVersion(previousLastBlock.getHeight())) {
                     throw new BlockNotAcceptedException("Invalid version " + block.getVersion());
                 }
@@ -293,13 +312,19 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
                     throw new BlockOutOfOrderException("Invalid timestamp: " + block.getTimestamp()
                             + " current time is " + curTime + ", previous block timestamp is " + previousLastBlock.getTimestamp());
                 }
+                */
+
                 if (block.getId() == 0L || BlockDb.hasBlock(block.getId())) {
                     throw new BlockNotAcceptedException("Duplicate block or invalid id");
                 }
 
-                if (!block.verify()) {
+                if (!block.verify() ) {
                     throw new BlockNotAcceptedException("Block verification failed");
                 }
+                if (!block.verify(previousLastBlock)) {
+                    throw new BlockNotAcceptedException("Block verification failed");
+                }
+
 
                 Map<TransactionType, Map<String, Boolean>> duplicates = new HashMap<>();
                 long calculatedTotalAmount = 0;
@@ -432,7 +457,7 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
                 BlockImpl block = blockchain.getLastBlock();
                 block.getTransactions();
                 Logger.logDebugMessage("Rollback from " + block.getHeight() + " to " + commonBlock.getHeight());
-                while (block.getId() != commonBlock.getId() && block.getId() != Genesis.GENESIS_BLOCK_ID) {
+                while (block.getId() != commonBlock.getId() && block.getHeight() > 0 ) {
                     poppedOffBlocks.add(block);
                     block = popLastBlock();
                 }
@@ -453,7 +478,7 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
 
     private BlockImpl popLastBlock() {
         BlockImpl block = blockchain.getLastBlock();
-        if (block.getId() == Genesis.GENESIS_BLOCK_ID) {
+        if (block.getHeight() == 0) {
             throw new RuntimeException("Cannot pop off genesis block");
         }
         BlockImpl previousBlock = blockchain.getBlock(block.getPreviousBlockId());
@@ -571,7 +596,7 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
                             if (currentBlock.getId() != currentBlockId) {
                                 throw new NxtException.NotValidException("Database blocks in the wrong order!");
                             }
-                            if (validate && currentBlockId != Genesis.GENESIS_BLOCK_ID) {
+                            if (validate && currentBlock.getHeight() > 0) {
 				/*
                                 if (!currentBlock.verifyBlockSignature()) {
                                     throw new NxtException.NotValidException("Invalid block signature");
@@ -582,6 +607,7 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
                                 if (currentBlock.getVersion() != getBlockVersion(blockchain.getHeight())) {
                                     throw new NxtException.NotValidException("Invalid block version");
                                 }*/
+
                                 if (!currentBlock.verify()) {
                                     throw new NxtException.NotValidException("Invalid block");
                                 }

@@ -106,8 +106,8 @@ public final class GeneratorNXT extends Generator implements Comparable<Generato
         this.newBlockListener = listener;
     }
 
-    public void addTransaction(Transaction tx) {} //TODO
-    public void setTransactions(List<Transaction> txs) {} //TODO
+    public void addTransaction(TransactionImpl tx) {} //TODO
+    public void setTransactions(List<TransactionImpl> txs) {} //TODO
 
     public static boolean addListener(Listener<GeneratorNXT> listener, Event eventType) {
         return listeners.addListener(listener, eventType);

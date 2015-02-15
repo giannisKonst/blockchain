@@ -93,6 +93,7 @@ class NxtDbVersion extends DbVersion {
             case 36:
                 apply("CREATE TABLE IF NOT EXISTS peer (address VARCHAR PRIMARY KEY)");
             case 37:
+		/*
                 if (!Constants.isTestnet) {
                     apply("INSERT INTO peer (address) VALUES " +
                             "('81.220.60.240'), ('nxt3.webice.ru'), ('nxtx.ru'), ('162.243.87.10'), ('80.153.101.190'), ('185.12.44.108'), " +
@@ -134,6 +135,7 @@ class NxtDbVersion extends DbVersion {
                             "('46.28.111.249'), ('94.79.54.205'), ('174.140.168.136'), ('107.170.3.62'), ('node1.forgenxt.com'), " +
                             "('5.196.1.215'), ('nxt01.now.im'), ('37.139.6.166')");
                 }
+		*/
             case 38:
                 apply("ALTER TABLE transaction ADD COLUMN IF NOT EXISTS full_hash BINARY(32)");
             case 39:
@@ -533,6 +535,10 @@ class NxtDbVersion extends DbVersion {
                 BlockchainProcessorImpl.getInstance().scheduleScan(0, false);
                 apply(null);
             case 199:
+
+                apply("ALTER TABLE block ADD COLUMN IF NOT EXISTS nonce BIGINT NOT NULL");
+            case 200:
+
                 return;
             default:
                 throw new RuntimeException("Blockchain database inconsistent with code, probably trying to run older code on newer database");

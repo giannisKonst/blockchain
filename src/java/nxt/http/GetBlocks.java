@@ -36,6 +36,7 @@ public final class GetBlocks extends APIServlet.APIRequestHandler {
                 blocks.add(JSONData.block(block, includeTransactions));
             }
         }
+        catch(Throwable e){e.printStackTrace(); throw e;} //TODO
 
         JSONObject response = new JSONObject();
         response.put("blocks", blocks);

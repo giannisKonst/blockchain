@@ -2,6 +2,7 @@ package nxt.http;
 
 import nxt.Account;
 import nxt.Generator;
+import nxt.GeneratorNXT;
 import nxt.Nxt;
 import nxt.crypto.Crypto;
 import org.json.simple.JSONObject;
@@ -34,7 +35,10 @@ public final class GetForging extends APIServlet.APIRequestHandler {
             return UNKNOWN_ACCOUNT;
         }
 
-        Generator generator = Generator.getGenerator(secretPhrase);
+        if(Generator.getInstance() instanceof GeneratorNXT == false){
+            return NOT_FORGING;
+        }
+        GeneratorNXT generator = ((GeneratorNXT)Generator.getInstance()).getGenerator(secretPhrase);
         if (generator == null) {
             return NOT_FORGING;
         }

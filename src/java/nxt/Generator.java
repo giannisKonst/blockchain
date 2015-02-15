@@ -43,7 +43,7 @@ public abstract class Generator {
 
     public static synchronized Generator getInstance() {
         if(generator == null) {
-            generator = new GeneratorNXT();
+            generator = new GeneratorPOW();
         }
         return generator;
     }
@@ -53,8 +53,8 @@ public abstract class Generator {
     public abstract void pauseForging();
     public abstract void onNewBlock(Listener<Block> listener); //replace old listener?
     public abstract void setLastBlock(Block lastBlock);
-    public abstract void addTransaction(Transaction tx);
-    public abstract void setTransactions(List<Transaction> txs);
+    public abstract void addTransaction(TransactionImpl tx);
+    public abstract void setTransactions(List<TransactionImpl> txs);
 
     /*
     static boolean allowsFakeForging(byte[] publicKey) {

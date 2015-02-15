@@ -18,7 +18,7 @@ import java.util.List;
 abstract class BlockImpl implements Block {
 
     
-    final int timestamp;
+    volatile int timestamp;
     final long previousBlockId;
     final byte[] previousBlockHash;
     final long totalAmountNQT;
@@ -28,7 +28,7 @@ abstract class BlockImpl implements Block {
     final byte[] payloadHash;
 
     volatile long nextBlockId;
-    int height = -1;
+    volatile int height = -1;
     volatile long id;
     volatile String stringId = null;
 
@@ -38,11 +38,18 @@ abstract class BlockImpl implements Block {
     BlockImpl(int timestamp, Block previousBlock, List<TransactionImpl> transactions) throws NxtException.ValidationException {
 
         this.timestamp = timestamp;
-        this.previousBlockId = previousBlock.getId();
+        if (previousBlock != null){
+            this.previousBlockId = previousBlock.getId();
+            this.previousBlockHash = previousBlock.getHash();
+            this.height = previousBlock.getHeight() + 1;
+        }else{
+            this.previousBlockId = 0;
+            this.previousBlockHash = new byte[32];
+            this.height = 0;
+        }
         //this.generatorPublicKey = generatorPublicKey;
         //this.generationSignature = generationSignature;
         //this.blockSignature = blockSignature;
-        this.previousBlockHash = previousBlock.getHash();
 
         if (transactions != null) {
             this.blockTransactions = Collections.unmodifiableList(transactions);
@@ -71,6 +78,10 @@ abstract class BlockImpl implements Block {
 	    if (payloadLength > Constants.MAX_PAYLOAD_LENGTH || payloadLength < 0) {
 	        throw new NxtException.NotValidException("attempted to create a block with payloadLength " + payloadLength);
 	    }
+
+            for(TransactionImpl tx : transactions) {
+                tx.setBlock(this); //TODO
+            }
         }else{
             throw new NullPointerException("blockTransactions");
         }
@@ -140,13 +151,17 @@ abstract class BlockImpl implements Block {
         return payloadHash;
     }
 
-    @Override
-    public List<TransactionImpl> getTransactions() {
-        if (blockTransactions == null) {
+    private void loadTransactions(){
             this.blockTransactions = Collections.unmodifiableList(TransactionDb.findBlockTransactions(getId()));
             for (TransactionImpl transaction : this.blockTransactions) {
                 transaction.setBlock(this);
             }
+    }
+
+    @Override
+    public List<TransactionImpl> getTransactions() {
+        if (blockTransactions == null) {
+            loadTransactions();
         }
         return blockTransactions;
     }
@@ -237,22 +252,32 @@ abstract class BlockImpl implements Block {
     }
 
     abstract boolean verify();
+    boolean verify(Block previousBlock){
+        if (previousBlock.getId() != this.getPreviousBlockId()) {
+            System.out.println(previousBlock.getId()+"!="+previousBlock.getPreviousBlockId());
+            return false;
+            //throw new NxtException.NotValidException("Previous block id doesn't match");
+        }
+        return true;
+    }
 
     void setPrevious(Block block) {
         if (block != null) {
+            /*
             if (block.getId() != getPreviousBlockId()) {
                 // shouldn't happen as previous id is already verified, but just in case
                 throw new IllegalStateException("Previous block id doesn't match");
-            }
+            }*/
             this.height = block.getHeight() + 1;
         } else {
             this.height = 0;
         }
+        /* //TODO why is that here?
         short index = 0;
         for (TransactionImpl transaction : getTransactions()) {
             transaction.setBlock(this);
             transaction.setIndex(index++);
-        }
+        }*/
     }
 
     abstract public BigInteger getCumulativeDifficulty();

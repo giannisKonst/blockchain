@@ -136,7 +136,7 @@ public class GetBlocksFromPeers implements Runnable {
                 return false;
             }
 
-            BigInteger myCumulativeDifficulty = ((BlockNXT)blockchain.getLastBlock()).getCumulativeDifficulty();
+            BigInteger myCumulativeDifficulty = ((BlockNXTImpl)blockchain.getLastBlock()).getCumulativeDifficulty();
             String peerCumulativeDifficulty = (String) response.get("cumulativeDifficulty");
             if (peerCumulativeDifficulty == null) {
                 return false;

@@ -21,7 +21,7 @@ import nxt.Transaction;
 import nxt.TransactionImpl;
 import java.util.Comparator;
 
-public class BlockNXTImpl extends BlockImpl implements BlockNXT {
+public class BlockNXTImpl extends BlockImpl {
 
     private final int version;
     private final byte[] generationSignature;
@@ -89,27 +89,22 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
         return super.getId();
     }
 
-    @Override
     public long getBaseTarget() {
         return baseTarget;
     }
 
-    @Override
     public BigInteger getCumulativeDifficulty() {
         return cumulativeDifficulty;
     }
 
-    @Override
     public byte[] getGeneratorPublicKey() {
         return generatorPublicKey;
     }
 
-    @Override
     public byte[] getGenerationSignature() {
         return generationSignature;
     }
 
-    @Override
     public byte[] getBlockSignature() {
         return blockSignature;
     }
@@ -286,7 +281,13 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
             cumulativeDifficulty = previousBlock.cumulativeDifficulty.add(Convert.two64.divide(BigInteger.valueOf(baseTarget)));
         }
     }
- 
+
+    private static int getBlockVersion(int previousBlockHeight) {
+        return previousBlockHeight < Constants.TRANSPARENT_FORGING_BLOCK ? 1
+                : previousBlockHeight < Constants.NQT_BLOCK ? 2
+                : 3;
+    }
+
     public long getGeneratorId() {
         if (generatorId == 0) {
             generatorId = Account.getId(generatorPublicKey);
@@ -302,10 +303,31 @@ public class BlockNXTImpl extends BlockImpl implements BlockNXT {
         if (!verifyBlockSignature()) {
             throw new BlockchainProcessor.BlockNotAcceptedException("Block signature verification failed");
         }*/
-	/*
-        if (currentBlock.getVersion() != getBlockVersion(blockchain.getHeight())) {
-            throw new NxtException.NotValidException("Invalid block version");
-        }*/
+        if (getTimestamp() > Nxt.getEpochTime() + 15 ) {
+            return false;
+            //throw new BlockOutOfOrderException("Invalid timestamp: " + block.getTimestamp()+ " current time is " + curTime + ", previous block timestamp is " + previousLastBlock.getTimestamp());
+        }
+
+        if (this.getVersion() != getBlockVersion(this.getHeight())) {
+            //throw new NxtException.NotValidException("Invalid block version");
+            return false;
+        }
+
+        return verifyGenerationSignature() && verifyBlockSignature();
+    }
+
+    boolean verify(Block previousBlock) {
+        if( !super.verify(previousBlock) ){ return false; }
+
+        if(getTimestamp() <= previousBlock.getTimestamp()){
+            return false;
+        }
+
+        if (this.getVersion() != 1 && !Arrays.equals(previousBlock.getHash(), this.getPreviousBlockHash())) {
+            return false;
+            //throw new NxtException.NotValidException("Previous block hash doesn't match");
+        }
+
         return verifyGenerationSignature() && verifyBlockSignature();
     }
 

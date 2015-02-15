@@ -10,6 +10,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ThreadFactory;
 
 public final class ThreadPool {
 
@@ -18,6 +19,32 @@ public final class ThreadPool {
     private static List<Runnable> beforeStartJobs = new ArrayList<>();
     private static List<Runnable> lastBeforeStartJobs = new ArrayList<>();
     private static List<Runnable> afterStartJobs = new ArrayList<>();
+
+    /*
+    private static class MyThread extends Thread {
+        @Override
+        public void run(){}
+    }*/
+
+    private static ThreadFactory threadFactory = new ThreadFactory() {
+        @Override
+        public Thread newThread(final Runnable r){
+
+            Runnable r2 = new Runnable(){
+               public void run(){
+                 try{
+                     r.run();
+                 }catch(Throwable e){
+                     e.printStackTrace();
+                     throw e;
+                 }
+               }
+            };
+
+            System.out.println("new thread");
+            return new Thread(r2);
+        }
+    };
 
     public static synchronized void runBeforeStart(Runnable runnable, boolean runLast) {
         if (scheduledThreadPool != null) {
@@ -43,6 +70,7 @@ public final class ThreadPool {
             throw new IllegalStateException("Executor service already started, no new jobs accepted");
         }
         if (! Nxt.getBooleanProperty("nxt.disable" + name + "Thread")) {
+            Logger.logDebugMessage("Will run " + name + " thread");
             backgroundJobs.put(runnable, timeUnit.toMillis(delay));
         } else {
             Logger.logMessage("Will not run " + name + " thread");
@@ -63,7 +91,7 @@ public final class ThreadPool {
         lastBeforeStartJobs = null;
 
         Logger.logDebugMessage("Starting " + backgroundJobs.size() + " background jobs");
-        scheduledThreadPool = Executors.newScheduledThreadPool(backgroundJobs.size());
+        scheduledThreadPool = Executors.newScheduledThreadPool(backgroundJobs.size(), threadFactory);
         for (Map.Entry<Runnable,Long> entry : backgroundJobs.entrySet()) {
             scheduledThreadPool.scheduleWithFixedDelay(entry.getKey(), 0, Math.max(entry.getValue() / timeMultiplier, 1), TimeUnit.MILLISECONDS);
         }
