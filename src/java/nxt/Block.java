@@ -43,6 +43,8 @@ public interface Block {
 
     //JSONObject getJSONObject(boolean includeTransactions); //for http
 
+    boolean betterThan(Block chainHead);
+
 /*
 */
     //TODO REMOVE

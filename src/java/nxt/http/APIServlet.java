@@ -317,7 +317,7 @@ public final class APIServlet extends HttpServlet {
             try (Writer writer = resp.getWriter()) {
                 response.writeJSONString(writer);
             }
-            Logger.logDebugMessage("API response: "+response);
+            //Logger.logDebugMessage("API response: "+response);
         }
 
     }

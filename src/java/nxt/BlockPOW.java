@@ -38,7 +38,7 @@ public class BlockPOW extends BlockImpl {
         this.timestamp = Nxt.getEpochTime();
         if(this.timestamp <= previousBlock.timestamp){ //TODO should this check -- fix the callers properly
           //throw new RuntimeException("wrong timestamp");
-          this.timestamp++;
+          this.timestamp = 1+previousBlock.timestamp;
         }
     }
 
@@ -150,11 +150,11 @@ public class BlockPOW extends BlockImpl {
  
     boolean verifyWork() {
         byte[] h = this.getHash();
-        byte[] lowHash = {h[0], h[1], h[2], h[3]};
+        byte[] lowHash = {h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]};
         BigInteger baseTarget = BigInteger.valueOf(this.baseTarget);
         BigInteger hit = new BigInteger(1, lowHash);
-        System.out.println("hit="+hit);
-        System.out.println("target="+baseTarget);
+        //System.out.println("hit   ="+hit);
+        //System.out.println("target="+baseTarget);
         return  hit.compareTo(baseTarget) == -1;
     }
 
@@ -164,7 +164,7 @@ public class BlockPOW extends BlockImpl {
 
     private BlockPOW(List<TransactionImpl> txs) throws Exception { //GENESIS BLOCK
         super(0, null, txs);
-        baseTarget = Long.MAX_VALUE / 2;
+        baseTarget = Long.MAX_VALUE /10;
     }
 
     public static Block getGenesisBlock() {

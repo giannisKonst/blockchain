@@ -26,13 +26,13 @@ import nxt.BlockchainProcessor.TransactionNotAcceptedException;
 
 public final class GeneratorPOW extends Generator {
 
-    private Listener<Block> newBlockListener;
-    private Block lastBlock;
-    private List<TransactionImpl> transactions = new ArrayList<>();
+    private volatile Listener<Block> newBlockListener;
+    private volatile Block lastBlock;
+    private volatile List<TransactionImpl> transactions = new ArrayList<>();
     private volatile boolean stop = true;
 
     //private BigInteger nonce = 0; //should need persistance
-    private BlockPOW block;
+    private volatile BlockPOW block;
 
     public GeneratorPOW() {
     }
@@ -63,8 +63,7 @@ public final class GeneratorPOW extends Generator {
             return timestamp;
     }
 
-    public void setLastBlock(Block lastBlock) {
-        this.lastBlock = lastBlock;
+    private void renewBlock(){
         try{
             block = new BlockPOW(getValidTimestamp(), lastBlock, transactions);
         }catch(NxtException.ValidationException e){
@@ -73,11 +72,19 @@ public final class GeneratorPOW extends Generator {
         }
     }
 
+
+    public void setLastBlock(Block lastBlock) {
+        this.lastBlock = lastBlock;
+        renewBlock();
+    }
+
     public void addTransaction(TransactionImpl tx) {
         transactions.add(tx);
+        renewBlock();
     }
     public void setTransactions(List<TransactionImpl> txs) {
         transactions = txs;
+        renewBlock();
     }
 
     private final Runnable generateBlocksTask = new Runnable() {
@@ -98,9 +105,10 @@ public final class GeneratorPOW extends Generator {
                         Logger.logDebugMessage("NEW BLOCK "+block.getJSONObject());
                         //Logger.logDebugMessage("NEW BLOCK hash="+Convert.toHexString(block.getHash()));
                         newBlockListener.notify(block);
+                        transactions.clear();
                         setLastBlock(block);
                     }else{
-                        Logger.logDebugMessage("CUR "+block.getJSONObject());
+                        //Logger.logDebugMessage("CUR "+block.getJSONObject());
                         block.incNonce();
                         block.setTimestamp(getValidTimestamp());
                     }

@@ -16,6 +16,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import java.util.HashMap;
+import nxt.BlockchainProcessor.TransactionNotAcceptedException;
+import nxt.BlockchainProcessor.BlockOutOfOrderException;
+
 final class TransactionImpl implements Transaction {
 
     static final class BuilderImpl implements Builder {
@@ -755,9 +759,12 @@ final class TransactionImpl implements Transaction {
     }
 
     private boolean useNQT() {
+        return true;
+        /* //TODO?
         return this.height > Constants.NQT_BLOCK
                 && (this.timestamp > (Constants.isTestnet ? 12908200 : 14271000)
                 || Nxt.getBlockchain().getHeight() >= Constants.NQT_BLOCK);
+       */
     }
 
     private byte[] zeroSignature(byte[] data) {
@@ -840,6 +847,76 @@ final class TransactionImpl implements Transaction {
 
     boolean isUnconfirmedDuplicate(Map<TransactionType, Map<String, Boolean>> duplicates) {
         return type.isUnconfirmedDuplicate(this, duplicates);
+    }
+
+    int getTransactionVersion(int previousBlockHeight) {
+        return 1;
+        //return previousBlockHeight < Constants.DIGITAL_GOODS_STORE_BLOCK ? 0 : 1;
+    }
+
+    void validate2() throws TransactionNotAcceptedException, BlockOutOfOrderException {
+		int curTime = Nxt.getEpochTime();
+		TransactionImpl transaction = this;
+
+                Map<TransactionType, Map<String, Boolean>> duplicates = new HashMap<>();
+
+                final BlockchainImpl blockchain = BlockchainImpl.getInstance();
+		BlockImpl previousLastBlock = null;
+		previousLastBlock = blockchain.getLastBlock();
+
+
+                    if (transaction.getTimestamp() > curTime + 15) {
+                        throw new BlockOutOfOrderException("Invalid transaction timestamp: " + transaction.getTimestamp()
+                                + ", current time is " + curTime);
+                    }
+                    // cfb: Block 303 contains a transaction which expired before the block timestamp
+                    if (transaction.getTimestamp() > block.getTimestamp() + 15
+                            || (transaction.getExpiration() < block.getTimestamp() && previousLastBlock.getHeight() != 303)) {
+                        throw new TransactionNotAcceptedException("Invalid transaction timestamp " + transaction.getTimestamp()
+                                + " for transaction " + transaction.getStringId() + ", current time is " + curTime
+                                + ", block timestamp is " + block.getTimestamp(), transaction);
+                    }
+                    if (TransactionDb.hasTransaction(transaction.getId())) {
+                        throw new TransactionNotAcceptedException("Transaction " + transaction.getStringId()
+                                + " is already in the blockchain", transaction);
+                    }
+                    if (transaction.getReferencedTransactionFullHash() != null) {
+                        if ((previousLastBlock.getHeight() < Constants.REFERENCED_TRANSACTION_FULL_HASH_BLOCK
+                                && !TransactionDb.hasTransaction(Convert.fullHashToId(transaction.getReferencedTransactionFullHash())))
+                                || (previousLastBlock.getHeight() >= Constants.REFERENCED_TRANSACTION_FULL_HASH_BLOCK
+                                && !TransactionProcessorImpl.hasAllReferencedTransactions(transaction, transaction.getTimestamp(), 0))) {
+                            throw new TransactionNotAcceptedException("Missing or invalid referenced transaction "
+                                    + transaction.getReferencedTransactionFullHash()
+                                    + " for transaction " + transaction.getStringId(), transaction);
+                        }
+                    }
+
+                    if (transaction.getVersion() != getTransactionVersion(previousLastBlock.getHeight())) {
+                        throw new TransactionNotAcceptedException("Invalid transaction version " + transaction.getVersion()
+                                + " at height " + previousLastBlock.getHeight(), transaction);
+                    }
+                    if (!transaction.verifySignature()) {
+                        throw new TransactionNotAcceptedException("Signature verification failed for transaction "
+                                + transaction.getStringId() + " at height " + previousLastBlock.getHeight(), transaction);
+                    }
+                    /*
+                    if (!EconomicClustering.verifyFork(transaction)) {
+                        Logger.logDebugMessage("Block " + block.getStringId() + " height " + (previousLastBlock.getHeight() + 1)
+                                + " contains transaction that was generated on a fork: "
+                                + transaction.getStringId() + " ecBlockHeight " + transaction.getECBlockHeight() + " ecBlockId "
+                                + Convert.toUnsignedLong(transaction.getECBlockId()));
+                        //throw new TransactionNotAcceptedException("Transaction belongs to a different fork", transaction);
+                    }
+                    */
+                    if (transaction.getId() == 0L) {
+                        throw new TransactionNotAcceptedException("Invalid transaction id", transaction);
+                    }
+
+                    if (transaction.isDuplicate(duplicates)) {
+                        throw new TransactionNotAcceptedException("Transaction is a duplicate: "
+                                + transaction.getStringId(), transaction);
+                    }
+
     }
 
 }

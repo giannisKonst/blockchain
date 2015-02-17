@@ -57,14 +57,20 @@ public class GetBlocksFromPeers implements Runnable {
             request.put("requestType", "getCumulativeDifficulty");
             getCumulativeDifficultyRequest = JSON.prepareRequest(request);
         }
-        private volatile boolean getMoreBlocks = true;
         private BlockchainProcessorImpl chainProcessor = BlockchainProcessorImpl.getInstance();
         private final BlockchainImpl blockchain = BlockchainImpl.getInstance();
         private final int defaultNumberOfForkConfirmations = Nxt.getIntProperty(Constants.isTestnet ? "nxt.testnetNumberOfForkConfirmations" : "nxt.numberOfForkConfirmations");
         private boolean peerHasMore;
 
+        private volatile boolean getMoreBlocks = true;
+        private volatile Listener<List<? extends Block>> betterChainListener;
+
         public void setGetMoreBlocks(boolean getMoreBlocks) {
             this.getMoreBlocks = getMoreBlocks;
+        }
+
+        public void onBetterChain(Listener<List<? extends Block>> listener) {
+            this.betterChainListener = listener;
         }
 
         @Override
@@ -266,12 +272,20 @@ public class GetBlocksFromPeers implements Runnable {
             }
 
             List<BlockImpl> forkBlocks = new ArrayList<>();
+            Block lastVerifiedBlock = commonBlock;
 
             for (Object o : nextBlocks) {
                 JSONObject blockData = (JSONObject) o;
                 BlockImpl block;
                 try {
                     block = BlockImpl.parseBlock(blockData);
+
+                    if (block.verify(lastVerifiedBlock)){
+                        lastVerifiedBlock = block;
+                    }else{
+                        throw new NxtException.NotValidException("blocks out of sequence");
+                    }
+
                 } catch (NxtException.NotCurrentlyValidException e) {
                     Logger.logDebugMessage("Cannot validate block: " + e.toString()
                             + ", will try again later", e);
@@ -282,6 +296,7 @@ public class GetBlocksFromPeers implements Runnable {
                     return;
                 }
 
+                /*
                 if (blockchain.getLastBlock().getId() == block.getPreviousBlockId()) {
                     try {
                         pushBlock(block);
@@ -297,17 +312,27 @@ public class GetBlocksFromPeers implements Runnable {
                     if (forkBlocks.size() == 720 - 1) {
                         break;
                     }
-                }
+                }*/
 
+                forkBlocks.add(block);
             }
 
             if (forkBlocks.size() > 0 && blockchain.getHeight() - commonBlock.getHeight() < 720) {
-                Logger.logDebugMessage("Will process a fork of " + forkBlocks.size() + " blocks");
-                processFork(peer, forkBlocks, commonBlock);
+                //Logger.logDebugMessage("Will process a fork of " + forkBlocks.size() + " blocks");
+                //processFork(peer, forkBlocks, commonBlock);
+                Logger.logDebugMessage("Downloaded a chain of " + forkBlocks.size() + " blocks");
+                if (lastVerifiedBlock.betterThan( blockchain.getLastBlock() )) {
+                    Logger.logDebugMessage("Switching to peer's fork");
+                    betterChainListener.notify(forkBlocks);
+                }else{
+                    Logger.logDebugMessage("Worse chain by peer " + peer.getPeerAddress() + ", blacklisting");
+                    peer.blacklist();
+                }
             }
 
         }
 
+        //TODO move (to chainProcessor?)
         private void processFork(Peer peer, final List<BlockImpl> forkBlocks, final Block commonBlock) {
 
             BigInteger curCumulativeDifficulty = blockchain.getLastBlock().getCumulativeDifficulty();
@@ -359,9 +384,11 @@ public class GetBlocksFromPeers implements Runnable {
 
         }
 
+        /*
         private void pushBlock(final Block block) throws BlockNotAcceptedException {
             chainProcessor.pushBlock((BlockImpl)block);
         }
+        */
 
         private List<BlockImpl> popOffTo(final Block block) {
             return popOffTo(block.getHeight());

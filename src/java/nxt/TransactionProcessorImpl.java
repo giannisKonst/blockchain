@@ -303,6 +303,7 @@ final class TransactionProcessorImpl implements TransactionProcessor {
             transaction.validate();
             processTransaction(new UnconfirmedTransaction((TransactionImpl) transaction, System.currentTimeMillis()));
             Logger.logDebugMessage("Accepted new transaction " + transaction.getStringId());
+            Generator.getInstance().addTransaction((TransactionImpl)transaction); //TODO?
             List<Transaction> acceptedTransactions = Collections.singletonList(transaction);
             Peers.sendToSomePeers(acceptedTransactions);
             transactionListeners.notify(acceptedTransactions, Event.ADDED_UNCONFIRMED_TRANSACTIONS);
@@ -398,7 +399,8 @@ final class TransactionProcessorImpl implements TransactionProcessor {
     }
 
     int getTransactionVersion(int previousBlockHeight) {
-        return previousBlockHeight < Constants.DIGITAL_GOODS_STORE_BLOCK ? 0 : 1;
+        return 1;
+        //return previousBlockHeight < Constants.DIGITAL_GOODS_STORE_BLOCK ? 0 : 1;
     }
 
     void processLater(Collection<TransactionImpl> transactions) {
@@ -503,9 +505,10 @@ final class TransactionProcessorImpl implements TransactionProcessor {
         synchronized (BlockchainImpl.getInstance()) {
             try {
                 Db.db.beginTransaction();
-                if (Nxt.getBlockchain().getHeight() < Constants.NQT_BLOCK) {
+                /*
+                if (Nxt.getBlockchain().getHeight() < Constants.NQT_BLOCK) { //TODO?
                     throw new NxtException.NotCurrentlyValidException("Blockchain not ready to accept transactions");
-                }
+                }*/
 
                 if (TransactionDb.hasTransaction(transaction.getId()) || unconfirmedTransactionTable.get(transaction.getDbKey()) != null) {
                     throw new NxtException.NotCurrentlyValidException("Transaction already processed");

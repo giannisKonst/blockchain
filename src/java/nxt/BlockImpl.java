@@ -243,6 +243,9 @@ abstract class BlockImpl implements Block {
     void apply() throws BlockchainProcessor.TransactionNotAcceptedException {
         for (TransactionImpl transaction : getTransactions()) {
             try {
+                if (! transaction.applyUnconfirmed()) {
+                    throw new BlockchainProcessor.TransactionNotAcceptedException("Double spending transaction: " + transaction.getStringId(), transaction);
+                }
                 transaction.apply();
             } catch (RuntimeException e) {
                 Logger.logErrorMessage(e.toString(), e);
@@ -252,7 +255,7 @@ abstract class BlockImpl implements Block {
     }
 
     abstract boolean verify();
-    boolean verify(Block previousBlock){
+    boolean verify(Block previousBlock) {
         if (previousBlock.getId() != this.getPreviousBlockId()) {
             System.out.println(previousBlock.getId()+"!="+previousBlock.getPreviousBlockId());
             return false;
@@ -260,6 +263,7 @@ abstract class BlockImpl implements Block {
         }
         return true;
     }
+    abstract public boolean betterThan(Block chainHead);
 
     void setPrevious(Block block) {
         if (block != null) {
