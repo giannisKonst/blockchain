@@ -29,8 +29,9 @@ public final class ThreadPool {
     private static ThreadFactory threadFactory = new ThreadFactory() {
         @Override
         public Thread newThread(final Runnable r){
-
-            Runnable r2 = new Runnable(){
+            System.out.println("new thread");
+            return new Thread(r){
+               @Override
                public void run(){
                  try{
                      r.run();
@@ -40,9 +41,6 @@ public final class ThreadPool {
                  }
                }
             };
-
-            System.out.println("new thread");
-            return new Thread(r2);
         }
     };
 

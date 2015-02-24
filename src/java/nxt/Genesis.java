@@ -9,7 +9,7 @@ public final class Genesis {
 
     public static final long CREATOR_ID = Account.getId(publicKey);
     public static final byte[] CREATOR_PUBLIC_KEY = publicKey;
-    public static final long GENESIS_BLOCK_ID = 2680262203532249785L;
+    //public static final long GENESIS_BLOCK_ID = 2680262203532249785L;
 
     public static final long[] GENESIS_RECIPIENTS = {
             Account.getId(Crypto.getPublicKey("test1")),

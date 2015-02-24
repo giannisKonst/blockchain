@@ -49,6 +49,18 @@ public final class Nxt {
         try (InputStream is = ClassLoader.getSystemResourceAsStream("nxt.properties")) {
             if (is != null) {
                 Nxt.properties.load(is);
+                int mod = getIntProperty("dev.ports");
+                int port;
+                port = getIntProperty("nxt.uiServerPort");
+                properties.setProperty("nxt.uiServerPort", String.valueOf(port + mod*10000));
+                port = getIntProperty("nxt.peerServerPort");
+                properties.setProperty("nxt.peerServerPort", String.valueOf(port + mod*10000));
+                port = getIntProperty("nxt.apiServerPort");
+                properties.setProperty("nxt.apiServerPort", String.valueOf(port + mod*10000));
+
+                String dbUrl = getStringProperty("nxt.dbUrl").replace("nxt_db/","nxt_db"+mod+"/");
+                properties.setProperty("nxt.dbUrl", dbUrl);
+
             } // ignore if missing
         } catch (IOException e) {
             throw new RuntimeException("Error loading nxt.properties", e);
@@ -111,6 +123,10 @@ public final class Nxt {
         }
         Logger.logMessage(name + " not defined, assuming false");
         return false;
+    }
+
+    public static long getGenesisBlockId() {
+        return getBlockchain().getBlockIdAtHeight(0);
     }
 
     public static Blockchain getBlockchain() {

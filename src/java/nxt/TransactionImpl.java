@@ -661,22 +661,22 @@ final class TransactionImpl implements Transaction {
 
     static TransactionImpl parseTransaction(JSONObject transactionData) throws NxtException.NotValidException {
         try {
-            byte type = ((Long) transactionData.get("type")).byteValue();
-            byte subtype = ((Long) transactionData.get("subtype")).byteValue();
-            int timestamp = ((Long) transactionData.get("timestamp")).intValue();
-            short deadline = ((Long) transactionData.get("deadline")).shortValue();
+            byte type = ((Number) transactionData.get("type")).byteValue();
+            byte subtype = ((Number) transactionData.get("subtype")).byteValue();
+            int timestamp = ((Number) transactionData.get("timestamp")).intValue();
+            short deadline = ((Number) transactionData.get("deadline")).shortValue();
             byte[] senderPublicKey = Convert.parseHexString((String) transactionData.get("senderPublicKey"));
             long amountNQT = Convert.parseLong(transactionData.get("amountNQT"));
             long feeNQT = Convert.parseLong(transactionData.get("feeNQT"));
             String referencedTransactionFullHash = (String) transactionData.get("referencedTransactionFullHash");
             byte[] signature = Convert.parseHexString((String) transactionData.get("signature"));
-            Long versionValue = (Long) transactionData.get("version");
+            Number versionValue = (Number) transactionData.get("version");
             byte version = versionValue == null ? 0 : versionValue.byteValue();
             JSONObject attachmentData = (JSONObject) transactionData.get("attachment");
             int ecBlockHeight = 0;
             long ecBlockId = 0;
             if (version > 0) {
-                ecBlockHeight = ((Long) transactionData.get("ecBlockHeight")).intValue();
+                ecBlockHeight = ((Number) transactionData.get("ecBlockHeight")).intValue();
                 ecBlockId = Convert.parseUnsignedLong((String) transactionData.get("ecBlockId"));
             }
 

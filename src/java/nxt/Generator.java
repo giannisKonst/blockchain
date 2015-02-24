@@ -26,6 +26,7 @@ import nxt.BlockchainProcessor.TransactionNotAcceptedException;
 
 public abstract class Generator {
 
+    /*
     private static final byte[] fakeForgingPublicKey;
     static {
         byte[] publicKey = null;
@@ -36,7 +37,7 @@ public abstract class Generator {
             }
         }
         fakeForgingPublicKey = publicKey;
-    }
+    }*/
 
 
     private static Generator generator;
@@ -51,6 +52,7 @@ public abstract class Generator {
     public abstract void init(); //no need, use the constructor instead
     public abstract void startForging(Block lastBlock); //null to resume
     public abstract void pauseForging();
+    public abstract void resumeForging();
     public abstract void onNewBlock(Listener<Block> listener); //replace old listener?
     public abstract void setLastBlock(Block lastBlock);
     public abstract void addTransaction(TransactionImpl tx);

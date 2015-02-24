@@ -126,7 +126,7 @@ final class BlockDb {
 
     static BlockImpl loadBlock(Connection con, ResultSet rs) throws NxtException.ValidationException {
         try {
-            return loadBlockPOW(con, rs);
+            return loadBlockPOW(con, rs); //TODO
         } catch (SQLException e) {
             throw new RuntimeException(e.toString(), e);
         }
@@ -134,7 +134,6 @@ final class BlockDb {
     }
 
     static BlockImpl loadBlockPOW(Connection con, ResultSet rs) throws SQLException, NxtException.ValidationException {
-            System.out.println("loadBlockPOW");
             //int version = rs.getInt("version");
             int timestamp = rs.getInt("timestamp");
             long previousBlockId = rs.getLong("previous_block_id");
@@ -154,10 +153,9 @@ final class BlockDb {
             BigInteger cumulativeDifficulty = new BigInteger(rs.getBytes("cumulative_difficulty"));
             long baseTarget = rs.getLong("base_target");
 
-            System.out.println("loadBlockPOW1");
             BlockImpl block = new BlockPOW(timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash, previousBlockHash,
                     nextBlockId, height, id, nonce, cumulativeDifficulty, baseTarget);
-            System.out.println("loadBlockPOW2 "+block);
+            Logger.logDebugMessage("loadBlockPOW "+block.getHeight()+" "+block.getId());
             return block;
     }
 
@@ -259,8 +257,8 @@ final class BlockDb {
                 pstmt.setLong(++i, block.getNonce());
                 pstmt.executeUpdate();
                 TransactionDb.saveTransactions(con, block.getTransactions());
-                System.out.println(pstmt);
-                System.out.println(block.getHeight());
+                //System.out.println(pstmt);
+                //System.out.println(block.getHeight());
             }
     }
 

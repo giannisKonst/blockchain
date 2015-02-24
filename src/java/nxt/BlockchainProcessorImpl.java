@@ -91,6 +91,7 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
                     Logger.logMessage("received block " + block.getHeight());
                     Db.db.analyzeTables();
                 }
+                generator.setLastBlock(block);
             }
         }, Event.BLOCK_PUSHED);
 
@@ -109,22 +110,6 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
                 }
             }, Event.AFTER_BLOCK_APPLY);
         }
-
-	/* //CHEKPOINTS
-        blockListeners.addListener(new Listener<Block>() {
-            @Override
-            public void notify(Block block) {
-                if (block.getHeight() == Constants.TRANSPARENT_FORGING_BLOCK && ! verifyChecksum(CHECKSUM_TRANSPARENT_FORGING)) {
-                    popOffTo(0);
-                }
-                if (block.getHeight() == Constants.NQT_BLOCK && ! verifyChecksum(CHECKSUM_NQT_BLOCK)) {
-                    popOffTo(Constants.TRANSPARENT_FORGING_BLOCK);
-                }
-                if (block.getHeight() == Constants.MONETARY_SYSTEM_BLOCK && ! verifyChecksum(CHECKSUM_MONETARY_SYSTEM_BLOCK)) {
-                    popOffTo(Constants.NQT_BLOCK);
-                }
-            }
-        }, Event.BLOCK_PUSHED);*/
 
         blockListeners.addListener(new Listener<Block>() {
             @Override
@@ -162,10 +147,10 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
         }, false);
 
         ThreadPool.scheduleThread("GetMoreBlocks", getMoreBlocksThread, 1);
-        getMoreBlocksThread.onBetterChain(new Listener<List<? extends Block>>() {
+        getMoreBlocksThread.onBetterChain(new Listener<List<? extends BlockImpl>>() {
             @Override
-            public void notify(List<? extends Block> chain) {
-            
+            public void notify(List<? extends BlockImpl> chain) {
+                handleBetterChain(chain);
             }
         });
 
@@ -174,7 +159,18 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
 	    @Override
 	    public void notify(Block block) {
 	        try{
-	            pushBlock((BlockImpl)block);
+                    synchronized(blockchain){
+                        Block head = blockchain.getLastBlock();
+                        if (block.getPreviousBlockId() == head.getId()) {
+                            pushBlock((BlockImpl)block);
+                        }else{
+                            if (block.betterThan(head)) {
+                                throw new Error("develop"); //TODO
+                            }else{
+                                Logger.logDebugMessage("rejected my block");
+                            }
+                        }
+                    }
 	        }catch(BlockNotAcceptedException e){
 	            e.printStackTrace();
 	            throw new Error(); //TODO
@@ -263,7 +259,6 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
     }
 
     private void addBlock(BlockImpl block) {
-        Logger.logDebugMessage("addBlock");
         try (Connection con = Db.db.getConnection()) {
             BlockDb.saveBlock(con, block);
             blockchain.setLastBlock(block);
@@ -304,6 +299,8 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
             try {
                 Db.db.beginTransaction();
                 previousLastBlock = blockchain.getLastBlock();
+
+                Logger.logDebugMessage("pushBlock() "+block.getJSONObject());
 
 
                 /*
@@ -365,11 +362,13 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
                     throw new BlockNotAcceptedException("Payload hash doesn't match");
                 }
 
-                block.setPrevious(previousLastBlock);
+                block.setPrevious(previousLastBlock); //TODO no need. perhaps replace with something usefull, a pre-persist phase
                 blockListeners.notify(block, Event.BEFORE_BLOCK_ACCEPT);
                 transactionProcessor.requeueAllUnconfirmedTransactions();
                 addBlock(block);
+                Logger.logDebugMessage("addBlock");
                 apply(block);
+                Logger.logDebugMessage("applyBlock");
 
                 Db.db.commitTransaction();
             } catch (BlockNotAcceptedException e) {
@@ -381,6 +380,7 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
             }
         } // synchronized
 
+        Logger.logDebugMessage("Event--BLOCK_PUSHED");
         blockListeners.notify(block, Event.BLOCK_PUSHED);
 
         if (block.getTimestamp() >= Nxt.getEpochTime() - 15) {
@@ -406,10 +406,11 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
 
     private List<BlockImpl> popOffTo(Block commonBlock) {
         synchronized (blockchain) {
+            /*
             if (commonBlock.getHeight() < getMinRollbackHeight()) {
                 throw new IllegalArgumentException("Rollback to height " + commonBlock.getHeight() + " not supported, "
                         + "current height " + Nxt.getBlockchain().getHeight());
-            }
+            }*/
             if (! blockchain.hasBlock(commonBlock.getId())) {
                 Logger.logDebugMessage("Block " + commonBlock.getStringId() + " not found in blockchain, nothing to pop off");
                 return Collections.emptyList();
@@ -465,32 +466,6 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
         }
     }
 
-    /*
-    private boolean verifyChecksum(byte[] validChecksum) {
-        MessageDigest digest = Crypto.sha256();
-        try (Connection con = Db.db.getConnection();
-             PreparedStatement pstmt = con.prepareStatement(
-                     "SELECT * FROM transaction ORDER BY id ASC, timestamp ASC");
-             DbIterator<TransactionImpl> iterator = blockchain.getTransactions(con, pstmt)) {
-            while (iterator.hasNext()) {
-                digest.update(iterator.next().getBytes());
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e.toString(), e);
-        }
-        byte[] checksum = digest.digest();
-        if (validChecksum == null) {
-            Logger.logMessage("Checksum calculated:\n" + Arrays.toString(checksum));
-            return true;
-        } else if (!Arrays.equals(checksum, validChecksum)) {
-            Logger.logErrorMessage("Checksum failed at block " + blockchain.getHeight() + ": " + Arrays.toString(checksum));
-            return false;
-        } else {
-            Logger.logMessage("Checksum passed at block " + blockchain.getHeight());
-            return true;
-        }
-    }*/
-
     void scheduleScan(int height, boolean validate) {
         scanner.scheduleScan(height, validate);
     }
@@ -498,6 +473,43 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
     @Override
     public void scan(int height, boolean validate) {
         scanner.scan(height, validate);
+    }
+
+    private void handleBetterChain(List<? extends BlockImpl> chain) {
+        synchronized (blockchain) { //TODO
+
+            long commonBlockId = chain.get(0).getPreviousBlockId();
+            Block commonBlock = blockchain.getBlock(commonBlockId);
+            if (!blockchain.hasBlock(commonBlockId)) { //my chain has changed in the meantime
+                return; //TODO
+            }
+            //TODO is still better chain?
+
+            List<BlockImpl> myChain;
+            if (blockchain.getLastBlock().getId() != commonBlockId) {
+                myChain = popOffTo(commonBlock);
+            }else{
+                myChain = new ArrayList<>(0);
+            }
+            Logger.logDebugMessage("poppedOff "+myChain.size()+" blocks");
+
+            try{
+                for (BlockImpl block : chain) {
+                    pushBlock(block);
+                }
+            }catch(BlockNotAcceptedException|RuntimeException e){
+                Logger.logDebugMessage("peer block rejeted", e);
+                try {
+                    for (BlockImpl block : myChain) {
+                        pushBlock(block);
+                    }
+                } catch(BlockNotAcceptedException e2) {  //should never happen
+                    throw new Error("develop", e2);
+                }
+                //TODO
+                
+            }
+        }
     }
 
 }

@@ -32,6 +32,8 @@ abstract class BlockImpl implements Block {
     volatile long id;
     volatile String stringId = null;
 
+    private volatile BlockImpl previousBlock;
+
 
     //Class childClass = BlockNXTImpl.class;
 
@@ -79,9 +81,10 @@ abstract class BlockImpl implements Block {
 	        throw new NxtException.NotValidException("attempted to create a block with payloadLength " + payloadLength);
 	    }
 
+            /*
             for(TransactionImpl tx : transactions) {
-                tx.setBlock(this); //TODO
-            }
+                tx.setBlock(this); //cannot be here, because blockId is not yet finalized
+            }*/
         }else{
             throw new NullPointerException("blockTransactions");
         }
@@ -162,6 +165,12 @@ abstract class BlockImpl implements Block {
     public List<TransactionImpl> getTransactions() {
         if (blockTransactions == null) {
             loadTransactions();
+        }else{
+            short index = 0;
+            for(TransactionImpl tx : blockTransactions) {
+                tx.setBlock(this); //is called here, because blockId is final at this point
+                tx.setIndex(index++);
+            }
         }
         return blockTransactions;
     }
@@ -183,7 +192,7 @@ abstract class BlockImpl implements Block {
     @Override
     public long getId() {
         if (id == 0) {
-            byte[] hash = Crypto.sha256().digest(getBytes());
+            byte[] hash = getHash();
             BigInteger bigInteger = new BigInteger(1, new byte[] {hash[7], hash[6], hash[5], hash[4], hash[3], hash[2], hash[1], hash[0]});
             id = bigInteger.longValue();
             stringId = bigInteger.toString();
@@ -233,9 +242,9 @@ abstract class BlockImpl implements Block {
 //    @Override
 //    abstract public JSONObject getJSONObject(boolean includeTransactions); //for http
 
-    static BlockImpl parseBlock(JSONObject blockData) throws NxtException.ValidationException {
-	return BlockNXTImpl.parseBlock(blockData); //TODO
-    }
+   static BlockImpl parseBlock(JSONObject blockData) throws NxtException.ValidationException {
+       return BlockPOW.parseBlock(blockData);
+   }
 
     abstract public byte[] getBytes();
     abstract public byte[] getHash();
@@ -255,23 +264,25 @@ abstract class BlockImpl implements Block {
     }
 
     abstract boolean verify();
+
     boolean verify(Block previousBlock) {
         if (previousBlock.getId() != this.getPreviousBlockId()) {
-            System.out.println(previousBlock.getId()+"!="+previousBlock.getPreviousBlockId());
+            System.out.println(previousBlock.getId()+"!="+this.getPreviousBlockId());
             return false;
             //throw new NxtException.NotValidException("Previous block id doesn't match");
         }
+
         return true;
     }
+
     abstract public boolean betterThan(Block chainHead);
 
     void setPrevious(Block block) {
         if (block != null) {
-            /*
             if (block.getId() != getPreviousBlockId()) {
-                // shouldn't happen as previous id is already verified, but just in case
+                // shouldn't happen as previous id is already verified, but just in case //TODO where?
                 throw new IllegalStateException("Previous block id doesn't match");
-            }*/
+            }
             this.height = block.getHeight() + 1;
         } else {
             this.height = 0;

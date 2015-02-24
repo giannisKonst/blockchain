@@ -100,8 +100,11 @@ public final class GeneratorNXT extends Generator implements Comparable<Generato
         ThreadPool.scheduleThread("GenerateBlocks", generateBlocksThread, 500, TimeUnit.MILLISECONDS);
     }
     public void pauseForging() {
-        //TODO
     }
+
+    public void resumeForging() {
+    }
+
     public void onNewBlock(Listener<Block> listener) {
         this.newBlockListener = listener;
     }
@@ -259,8 +262,10 @@ public final class GeneratorNXT extends Generator implements Comparable<Generato
 
         block.sign(secretPhrase);
 
+        newBlockListener.notify(block);
+        /*
         try {
-            BlockchainProcessorImpl.getInstance().pushBlock(block);
+            //BlockchainProcessorImpl.getInstance().pushBlock(block);
             //blockListeners.notify(block, Event.BLOCK_GENERATED);
             Logger.logDebugMessage("Account " + Convert.toUnsignedLong(block.getGeneratorId()) + " generated block " + block.getStringId()
                     + " at height " + block.getHeight());
@@ -274,6 +279,7 @@ public final class GeneratorNXT extends Generator implements Comparable<Generato
             Logger.logDebugMessage("Generate block failed: " + e.getMessage());
             throw e;
         }
+        */
     }
 
 

@@ -820,15 +820,19 @@ public final class Peers {
             }
             URI uri = new URI("http://" + address.trim());
             String host = uri.getHost();
-            if (host == null || host.equals("") || host.equals("localhost") ||
-                                host.equals("127.0.0.1") || host.equals("[0:0:0:0:0:0:0:1]")) {
+            if (host == null || host.equals("") 
+               //  || host.equals("localhost") || host.equals("127.0.0.1") || host.equals("[0:0:0:0:0:0:0:1]")
+             ) {
                 return null;
             }
+            Logger.logDebugMessage("normalizeHostAndPort() "+host);
             InetAddress inetAddress = InetAddress.getByName(host);
+            Logger.logDebugMessage("normalizeHostAndPort() "+inetAddress);
+            /* //TODO
             if (inetAddress.isAnyLocalAddress() || inetAddress.isLoopbackAddress() ||
                                                    inetAddress.isLinkLocalAddress()) {
                 return null;
-            }
+            }*/
             int port = uri.getPort();
             return port == -1 || port == Peers.getDefaultPeerPort() ? host : host + ':' + port;
         } catch (URISyntaxException |UnknownHostException e) {

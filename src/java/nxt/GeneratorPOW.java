@@ -51,6 +51,9 @@ public final class GeneratorPOW extends Generator {
     public void pauseForging() {
     }
 
+    public void resumeForging() {
+    }
+
     public void onNewBlock(Listener<Block> listener) {
         this.newBlockListener = listener;
     }
@@ -73,16 +76,17 @@ public final class GeneratorPOW extends Generator {
     }
 
 
-    public void setLastBlock(Block lastBlock) {
+    synchronized public void setLastBlock(Block lastBlock) {
         this.lastBlock = lastBlock;
         renewBlock();
+        Logger.logDebugMessage("setLastBlock() "+lastBlock.getJSONObject());
     }
 
-    public void addTransaction(TransactionImpl tx) {
+    synchronized public void addTransaction(TransactionImpl tx) {
         transactions.add(tx);
         renewBlock();
     }
-    public void setTransactions(List<TransactionImpl> txs) {
+    synchronized public void setTransactions(List<TransactionImpl> txs) {
         transactions = txs;
         renewBlock();
     }
@@ -91,6 +95,7 @@ public final class GeneratorPOW extends Generator {
 
         private volatile int lastTimestamp;
         private volatile long lastBlockId;
+        private final GeneratorPOW generator = GeneratorPOW.this;
 
         @Override
         public void run() {
@@ -101,12 +106,18 @@ public final class GeneratorPOW extends Generator {
             try {
                 try {
                     //Logger.logDebugMessage("LAST "+lastBlock.getJSONObject());
+                    BlockPOW block = generator.block; //instead of synchronized{}
                     if(block.verifyWork()) {
+                        BlockPOW.parseBlock(block.getJSONObject(), (BlockPOW)lastBlock); //TODO remove assertion
                         Logger.logDebugMessage("NEW BLOCK "+block.getJSONObject());
                         //Logger.logDebugMessage("NEW BLOCK hash="+Convert.toHexString(block.getHash()));
-                        newBlockListener.notify(block);
-                        transactions.clear();
-                        setLastBlock(block);
+                        synchronized(generator) {
+                            if(block == generator.block){
+                                transactions = new ArrayList<>();
+                                setLastBlock(block);
+                            }
+                        }
+                        newBlockListener.notify(block); //external listener may change state
                     }else{
                         //Logger.logDebugMessage("CUR "+block.getJSONObject());
                         block.incNonce();

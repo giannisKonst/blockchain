@@ -126,19 +126,20 @@ public class BlockNXTImpl extends BlockImpl {
 
    static BlockNXTImpl parseBlock(JSONObject blockData) throws NxtException.ValidationException {
         try {
-            int version = ((Long) blockData.get("version")).intValue();
             int timestamp = ((Long) blockData.get("timestamp")).intValue();
             long previousBlock = Convert.parseUnsignedLong((String) blockData.get("previousBlock"));
             long totalAmountNQT = Convert.parseLong(blockData.get("totalAmountNQT"));
             long totalFeeNQT = Convert.parseLong(blockData.get("totalFeeNQT"));
             int payloadLength = ((Long) blockData.get("payloadLength")).intValue();
             byte[] payloadHash = Convert.parseHexString((String) blockData.get("payloadHash"));
-            byte[] previousBlockHash = version == 1 ? null : Convert.parseHexString((String) blockData.get("previousBlockHash"));
+            //byte[] previousBlockHash = version == 1 ? null : Convert.parseHexString((String) blockData.get("previousBlockHash"));
+            byte[] previousBlockHash = Convert.parseHexString((String) blockData.get("previousBlockHash"));
             List<TransactionImpl> blockTransactions = new ArrayList<>();
             for (Object transactionData : (JSONArray) blockData.get("transactions")) {
                 blockTransactions.add(TransactionImpl.parseTransaction((JSONObject) transactionData));
             }
 
+            int version = ((Long) blockData.get("version")).intValue();
             byte[] generatorPublicKey = Convert.parseHexString((String) blockData.get("generatorPublicKey"));
             byte[] generationSignature = Convert.parseHexString((String) blockData.get("generationSignature"));
             byte[] blockSignature = Convert.parseHexString((String) blockData.get("blockSignature"));
@@ -254,9 +255,15 @@ public class BlockNXTImpl extends BlockImpl {
         }
     }
 
+    public boolean betterThan(Block block1){
+        BlockNXTImpl block = (BlockNXTImpl) block1;
+        return cumulativeDifficulty.compareTo( block.cumulativeDifficulty ) == 1;
+    }
+
     private void calculateBaseTarget(BlockNXTImpl previousBlock) {
 
-        if (this.getId() != Genesis.GENESIS_BLOCK_ID || previousBlockId != 0) {
+        //if (this.getId() != Genesis.GENESIS_BLOCK_ID || previousBlockId != 0) {
+        if (previousBlockId != 0) {
             long curBaseTarget = previousBlock.baseTarget;
             long newBaseTarget = BigInteger.valueOf(curBaseTarget)
                     .multiply(BigInteger.valueOf(this.timestamp - previousBlock.timestamp))
