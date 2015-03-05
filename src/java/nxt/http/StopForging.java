@@ -6,29 +6,24 @@ import org.json.simple.JSONStreamAware;
 
 import javax.servlet.http.HttpServletRequest;
 
-import static nxt.http.JSONResponses.MISSING_SECRET_PHRASE;
-
+//import static nxt.http.JSONResponses.MISSING_SECRET_PHRASE;
+import nxt.Generator;
 
 public final class StopForging extends APIServlet.APIRequestHandler {
 
     static final StopForging instance = new StopForging();
 
     private StopForging() {
-        super(new APITag[] {APITag.FORGING}, "secretPhrase");
+        super(new APITag[] {APITag.FORGING} );
     }
 
     @Override
     JSONStreamAware processRequest(HttpServletRequest req) {
 
-        String secretPhrase = req.getParameter("secretPhrase");
-        if (secretPhrase == null) {
-            return MISSING_SECRET_PHRASE;
-        }
-
-        GeneratorNXT generator = GeneratorNXT.stopForging(secretPhrase);
+        Generator.getInstance().stopForging();
 
         JSONObject response = new JSONObject();
-        response.put("foundAndStopped", generator != null);
+        response.put("stopped", true);
         return response;
 
     }

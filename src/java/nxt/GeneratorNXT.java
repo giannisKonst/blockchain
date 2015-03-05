@@ -94,15 +94,13 @@ public final class GeneratorNXT extends Generator implements Comparable<Generato
 	secretPhrase = null;
 	publicKey = null;
     }
-    public void init() {}
-    public void startForging(Block lastBlock) {
+    public void init() {
+    }
+    public void startForging() {
         //TODO lastBlock
         ThreadPool.scheduleThread("GenerateBlocks", generateBlocksThread, 500, TimeUnit.MILLISECONDS);
     }
-    public void pauseForging() {
-    }
-
-    public void resumeForging() {
+    public void stopForging() {
     }
 
     public void onNewBlock(Listener<Block> listener) {

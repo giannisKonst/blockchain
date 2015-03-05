@@ -586,6 +586,7 @@ var NRS = (function(NRS, $, undefined) {
 				}
 			}
 		});
+
 	}
 
 	NRS.unlockForm = function($modal, $btn, hide) {

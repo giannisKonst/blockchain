@@ -538,6 +538,10 @@ class NxtDbVersion extends DbVersion {
 
                 apply("ALTER TABLE block ADD COLUMN IF NOT EXISTS nonce BIGINT NOT NULL");
             case 200:
+                apply("ALTER TABLE block ADD COLUMN IF NOT EXISTS vote VARCHAR NOT NULL DEFAULT 'old_blocks'");
+            case 201:
+                apply("ALTER TABLE block ADD COLUMN IF NOT EXISTS actor VARCHAR NOT NULL DEFAULT 'old_blocks'");
+            case 202:
 
                 return;
             default:

@@ -7,13 +7,17 @@
             </div>
             <div class="modal-body">            
                 <form role="form" autocomplete="off">
-                    <p class="show_secret_phrase" data-i18n="start_forging_confirmation_passphrase">If you want to start forging, type your passphrase to confirm.</p>
+                    <p class="show_secret_phrase" data-i18n="start_forging_confirmation_passphrase">To start forging, give the input you want to vote for.</p>
                     <p class="hide_secret_phrase" style="display:none" data-i18n="start_forging_confirmation">If you you want to start forging, click the button below to confirm.</p>
                     <div class="callout callout-danger remote_warning" style="display:none" data-i18n="[html]passphrase_remote_warning"><strong>Warning</strong>: Your passphrase will be sent to the server!</div>
                     <div class="callout callout-danger error_message" style="display:none"></div>
+                    <div class="form-group">
+                        <label for="start_forging_input" data-i18n="input">INPUT</label>
+                        <input type="text" name="input" id="start_forging_input" class="form-control" placeholder="input to vote for" tabindex="1">
+                    </div>
                     <div class="form-group secret_phrase">
                         <label for="start_forging_password" data-i18n="passphrase">PASSPHRASE</label>
-                        <input type="password" name="secretPhrase" id="start_forging_password" class="form-control" placeholder="" tabindex="1">
+                        <input type="password" name="secretPhrase" id="start_forging_password" class="form-control" placeholder="type your passphrase to confirm" tabindex="1">
                     </div>
                     <input type="hidden" name="request_type" value="startForging" />
                 </form>

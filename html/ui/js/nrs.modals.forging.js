@@ -6,7 +6,7 @@ var NRS = (function(NRS, $, undefined) {
 	//todo: use a startForgingError function instaed!
 
 	NRS.forms.startForgingComplete = function(response, data) {
-		if ("deadline" in response) {
+		if (response.forging) {
 			$("#forging_indicator").addClass("forging");
 			$("#forging_indicator span").html($.t("forging")).attr("data-i18n", "forging");
 			NRS.isForging = true;
@@ -32,7 +32,7 @@ var NRS = (function(NRS, $, undefined) {
 
 		NRS.isForging = false;
 
-		if (response.foundAndStopped) {
+		if (response.stopped) {
 			$.growl($.t("success_stop_forging"), {
 				type: 'success'
 			});

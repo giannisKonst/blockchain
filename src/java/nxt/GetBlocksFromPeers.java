@@ -277,57 +277,58 @@ public class GetBlocksFromPeers implements Runnable {
         }
 
         private void downloadBlockchain(final Peer peer, final Block commonBlock) {
-            JSONArray nextBlocks = getNextBlocks(peer, commonBlock.getId());
-            if (nextBlocks == null || nextBlocks.size() == 0) {
-                return;
-            }
-
             List<BlockImpl> forkBlocks = new ArrayList<>();
             BlockImpl lastVerifiedBlock = (BlockImpl)commonBlock;
 
-            for (Object o : nextBlocks) {
-                JSONObject blockData = (JSONObject) o;
-                BlockImpl block;
-                try {
-                    Logger.logDebugMessage("lastVerifiedBlock= "+lastVerifiedBlock.getId()+" "+lastVerifiedBlock.getHeight());
-                    block = BlockPOW.parseBlock(blockData, lastVerifiedBlock);
-                    lastVerifiedBlock = block; //parseBlock() encapsulates verify()
-                    /*
-                    if (block.verify(lastVerifiedBlock)){
-                        lastVerifiedBlock = block;
-                    }else{
-                        throw new NxtException.NotValidException("blocks out of sequence");
-                    }*/
+            JSONArray nextBlocks = getNextBlocks(peer, commonBlock.getId());
+            
+            while(nextBlocks != null && nextBlocks.size() > 0) {
 
-                } catch (NxtException.NotCurrentlyValidException e) {
-                    Logger.logDebugMessage("Cannot validate block: " + e.toString()
-                            + ", will try again later", e);
-                    break;
-                } catch (RuntimeException | NxtException.ValidationException e) {
-                    Logger.logDebugMessage("Failed to parse block: " + e.toString(), e);
-                    peer.blacklist(e);
-                    return;
-                }
+		    for (Object o : nextBlocks) {
+		        JSONObject blockData = (JSONObject) o;
+		        BlockImpl block;
+		        try {
+		            Logger.logDebugMessage("lastVerifiedBlock= "+lastVerifiedBlock.getId()+" "+lastVerifiedBlock.getHeight());
+		            block = Config.BlockFactory.parseBlock(blockData, lastVerifiedBlock);
+		            lastVerifiedBlock = block; //parseBlock() encapsulates verify()
+		            /*
+		            if (block.verify(lastVerifiedBlock)){
+		                lastVerifiedBlock = block;
+		            }else{
+		                throw new NxtException.NotValidException("blocks out of sequence");
+		            }*/
 
-                /*
-                if (blockchain.getLastBlock().getId() == block.getPreviousBlockId()) {
-                    try {
-                        pushBlock(block);
-                        if (blockchain.getHeight() - commonBlock.getHeight() == 720 - 1) {
-                            break;
-                        }
-                    } catch (BlockNotAcceptedException e) {
-                        peer.blacklist(e);
-                        return;
-                    }
-                } else {
-                    forkBlocks.add(block);
-                    if (forkBlocks.size() == 720 - 1) {
-                        break;
-                    }
-                }*/
+		        } catch (NxtException.NotCurrentlyValidException e) {
+		            Logger.logDebugMessage("Cannot validate block: " + e.toString()
+		                    + ", will try again later", e);
+		            break;
+		        } catch (RuntimeException | NxtException.ValidationException e) {
+		            Logger.logDebugMessage("Failed to parse block: " + e.toString(), e);
+		            peer.blacklist(e);
+		            return;
+		        }
 
-                forkBlocks.add(block);
+		        forkBlocks.add(block);
+
+		        /*
+		        if (blockchain.getLastBlock().getId() == block.getPreviousBlockId()) {
+		            try {
+		                pushBlock(block);
+		                if (blockchain.getHeight() - commonBlock.getHeight() == 720 - 1) {
+		                    break;
+		                }
+		            } catch (BlockNotAcceptedException e) {
+		                peer.blacklist(e);
+		                return;
+		            }
+		        } else {
+		            forkBlocks.add(block);
+		            if (forkBlocks.size() == 720 - 1) {
+		                break;
+		            }
+		        }*/
+	            }
+                    nextBlocks = getNextBlocks(peer, lastVerifiedBlock.getId());
             }
 
             if (forkBlocks.size() > 0 ) { //&& blockchain.getHeight() - commonBlock.getHeight() < 720

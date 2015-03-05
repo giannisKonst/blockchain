@@ -157,7 +157,7 @@ class Scanner {
 
                                 byte[] blockBytes = currentBlock.getBytes();
                                 JSONObject blockJSON = (JSONObject) JSONValue.parse(currentBlock.getJSONObject().toJSONString());
-                                if (!Arrays.equals(blockBytes, BlockImpl.parseBlock(blockJSON).getBytes())) {
+                                if (!Arrays.equals(blockBytes, Config.BlockFactory.parseBlock(blockJSON).getBytes())) {
                                     throw new NxtException.NotValidException("Block JSON cannot be parsed back to the same block");
                                 }
                                 Map<TransactionType, Map<String, Boolean>> duplicates = new HashMap<>();

@@ -220,7 +220,7 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
 
     @Override
     public void processPeerBlock(JSONObject request) throws NxtException {
-        BlockImpl block = BlockImpl.parseBlock(request);
+        BlockImpl block = Config.BlockFactory.parseBlock(request); //TODO
         pushBlock(block);
     }
 
@@ -277,7 +277,7 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
         }else{
             Logger.logMessage("Genesis block not in database, starting from scratch");
         //try {
-            BlockImpl genesisBlock = (BlockImpl)BlockPOW.getGenesisBlock(); //TODO
+            BlockImpl genesisBlock = Config.BlockFactory.genesis(); //TODO
             genesisBlock.setPrevious(null);
             addBlock(genesisBlock);
 	/*
@@ -286,7 +286,7 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
             throw new RuntimeException(e.toString(), e);
         }*/
         }
-        generator.startForging(blockchain.getLastBlock());
+        generator.setLastBlock(blockchain.getLastBlock()); //TODO don't treat genesis as special case
     }
 
     private void pushBlock(final BlockImpl block) throws BlockNotAcceptedException {
@@ -325,8 +325,10 @@ final class BlockchainProcessorImpl implements BlockchainProcessor {
                     throw new BlockNotAcceptedException("Duplicate block or invalid id");
                 }
 
-                if (!block.verify() ) {
-                    throw new BlockNotAcceptedException("Block verification failed");
+                try{
+                    block.verify();
+                }catch(NxtException.ValidationException e){
+                    throw new BlockNotAcceptedException(e);
                 }
                 if (!block.verify(previousLastBlock)) {
                     throw new BlockNotAcceptedException("Block verification failed");

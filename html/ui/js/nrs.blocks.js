@@ -47,7 +47,7 @@ var NRS = (function(NRS, $, undefined) {
 						//last week
 						NRS.setStateInterval(10);
 					}
-					NRS.downloadingBlockchain = true;
+					//NRS.downloadingBlockchain = true; //TODO revisit
 					if (NRS.inApp) {
 						parent.postMessage("downloadingBlockchain", "*");
 					}

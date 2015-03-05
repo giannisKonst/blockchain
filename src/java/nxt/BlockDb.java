@@ -153,8 +153,12 @@ final class BlockDb {
             BigInteger cumulativeDifficulty = new BigInteger(rs.getBytes("cumulative_difficulty"));
             long baseTarget = rs.getLong("base_target");
 
-            BlockImpl block = new BlockPOW(timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash, previousBlockHash,
-                    nextBlockId, height, id, nonce, cumulativeDifficulty, baseTarget);
+            String vote = rs.getString("vote");
+            String actorsDiscriminator = rs.getString("actor");
+
+            BlockImpl block = new BlockBA(timestamp, previousBlockId, totalAmountNQT, totalFeeNQT, payloadLength, payloadHash, previousBlockHash,
+                    nextBlockId, height, id, nonce, cumulativeDifficulty, baseTarget, vote, actorsDiscriminator);
+
             Logger.logDebugMessage("loadBlockPOW "+block.getHeight()+" "+block.getId());
             return block;
     }
@@ -234,8 +238,8 @@ final class BlockDb {
     static void saveBlock(Connection con, BlockPOW block) throws SQLException {
             try (PreparedStatement pstmt = con.prepareStatement("INSERT INTO block (id, version, timestamp, previous_block_id, "
                     + "total_amount, total_fee, payload_length, generator_public_key, previous_block_hash, cumulative_difficulty, "
-                    + "base_target, height, generation_signature, block_signature, payload_hash, generator_id, nonce) "
-                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                    + "base_target, height, generation_signature, block_signature, payload_hash, generator_id, nonce, vote, actor) "
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
                 byte[] zero = new byte[32];
                 int i = 0;
                 pstmt.setLong(++i, block.getId());
@@ -255,6 +259,8 @@ final class BlockDb {
                 pstmt.setBytes(++i, block.getPayloadHash());
                 pstmt.setLong(++i, 0); //generatorId
                 pstmt.setLong(++i, block.getNonce());
+                pstmt.setString(++i, ((BlockBA)block).getVote());
+                pstmt.setString(++i, ((BlockBA)block).getActor());
                 pstmt.executeUpdate();
                 TransactionDb.saveTransactions(con, block.getTransactions());
                 //System.out.println(pstmt);

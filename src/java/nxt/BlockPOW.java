@@ -30,13 +30,14 @@ public class BlockPOW extends BlockImpl {
     //private int timestamp = Nxt.getEpochTime();
     private BigInteger cumulativeDifficulty = BigInteger.ZERO;
     private long baseTarget;
+    //private BlockPOW previousBlock;
 
 
     BlockPOW(int timestamp, Block previousBlock_, List<TransactionImpl> transactions) throws NxtException.ValidationException {
 	super(timestamp, previousBlock_, transactions);
 
-        BlockPOW previousBlock = (BlockPOW)previousBlock_;
-        this.calculateBaseTarget(previousBlock);
+        //this.previousBlock = (BlockPOW)previousBlock_;
+        this.calculateBaseTarget((BlockPOW)previousBlock);
         this.timestamp = timestamp;
         if(this.timestamp <= previousBlock.timestamp){ //TODO should not check -- fix the callers properly
           throw new RuntimeException("wrong timestamp");
@@ -101,21 +102,15 @@ public class BlockPOW extends BlockImpl {
         this.getJSONObject(false);
     }*/
 
+    public int getBytesSize() {
+        return 8 + super.getBytesSize();
+    }
+
     public byte[] getBytes() {
-        //ByteBuffer buffer = ByteBuffer.allocate( 4 + 8 + 4 + (8 + 8) + 4 + 32 + 32 + 64);
-        ByteBuffer buffer = ByteBuffer.allocate( 4 + 8 + 32 + 32 + 8);
-        buffer.order(ByteOrder.LITTLE_ENDIAN);
-        //Logger.logDebugMessage("getBytes() timestamp="+timestamp);
-        buffer.putInt(timestamp);
-        buffer.putLong(previousBlockId);
-        //buffer.putInt(getTransactions().size());
-        //buffer.putLong(totalAmountNQT);
-        //buffer.putLong(totalFeeNQT);
-        //buffer.putInt(payloadLength);
-        buffer.put(payloadHash);
-        buffer.put(previousBlockHash);
+        byte[] bytes = super.getBytes();
+        int offset = super.getBytesSize();
+        ByteBuffer buffer = ByteBuffer.wrap( bytes, offset, 8 );
         buffer.putLong(nonce);
-        //Logger.logDebugMessage("getBytes()= "+Convert.toHexString(buffer.array()));
         return buffer.array();
     }
 
@@ -136,38 +131,54 @@ public class BlockPOW extends BlockImpl {
     }
 
     private void calculateBaseTarget(BlockPOW previousBlock) {
-        //if (this.getId() != Genesis.GENESIS_BLOCK_ID || previousBlockId != 0) {
-            if( getHeight() % 2012 != 0){
+            final int calibrationInterval = 201;
+            if( getHeight() % calibrationInterval != 0){
                 baseTarget = previousBlock.baseTarget;
-            }else{
-                baseTarget = previousBlock.baseTarget;
-                //baseTarget = average of last 2012 blocks; //TODO
+            }else{ //calibrate difficulty
                 Blockchain chain = BlockchainImpl.getInstance();
                 synchronized (chain) {
-                    if(chain.getLastBlock().equals(this)) { 
-                    }else{
+                    Block prevCalibration;
+                    if(chain.getLastBlock().getId() == previousBlockId || chain.hasBlock(previousBlockId) ) {
+                        prevCalibration = chain.getBlockAtHeight( this.getHeight() - calibrationInterval );
+                    } else {
+                        BlockPOW block = previousBlock;
+                        while(block.height > this.height - calibrationInterval) {
+                            block = (BlockPOW)block.previousBlock;
+                            if(block == null){ //TODO when?
+                                throw new Error("develop");
+                            }
+                        }
+                        prevCalibration = block;
                     }
+                    int timeDiff = this.timestamp - prevCalibration.getTimestamp();
+                    int wantedBlockInterval = 15; //seconds
+                    int wantedTimeDiff = wantedBlockInterval * calibrationInterval;
+                    baseTarget = previousBlock.baseTarget * timeDiff/wantedTimeDiff;
+                    if(baseTarget < 0){
+                         Logger.logDebugMessage("calculateBaseTarget() OVERFLOW");
+                        //throw new Error("target overflow. choose other type?");
+                         baseTarget = Long.MAX_VALUE;
+                    }
+                    Logger.logDebugMessage("calculateBaseTarget() prev="+previousBlock.baseTarget+" cur="+baseTarget);
                 }
                 Logger.logDebugMessage("adjustBaseTarget() "+baseTarget);
             }
+
             cumulativeDifficulty = previousBlock.cumulativeDifficulty.add(Convert.two64.divide(BigInteger.valueOf(baseTarget)));
-        //}
     }
 
-    boolean verify() {
+    boolean verify() throws NxtException.ValidationException {
         return this.verifyWork();
     }
  
     boolean verifyWork() {
         byte[] h = this.getHash();
         byte[] lowHash = {h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]};
-        BigInteger baseTarget = BigInteger.valueOf(this.baseTarget);
+        BigInteger target = BigInteger.valueOf(this.baseTarget);
         BigInteger hit = new BigInteger(1, lowHash);
-        //System.out.println("hit   ="+hit);
-        //System.out.println("target="+baseTarget);
-        //Logger.logDebugMessage("hit       ="+hit);
-        //Logger.logDebugMessage("baseTarget="+baseTarget);
-        return  hit.compareTo(baseTarget) == -1;
+        //Logger.logDebugMessage("hit   ="+hit);
+        //Logger.logDebugMessage("target="+target);
+        return  hit.compareTo(target) == -1;
     }
 
     boolean verify(Block previousBlock) {
@@ -177,9 +188,10 @@ public class BlockPOW extends BlockImpl {
         return super.verify(previousBlock);
     }
 
-    private BlockPOW(List<TransactionImpl> txs) throws Exception { //GENESIS BLOCK
-        super(0, null, txs);
-        baseTarget = Long.MAX_VALUE /10;
+    BlockPOW(Init genesis, List<TransactionImpl> txs) throws NxtException.ValidationException { //GENESIS BLOCK
+        super(genesis, txs);
+        baseTarget = Long.MAX_VALUE /1000;
+        baseTarget = 1468397538205671l;
     }
 
     public static Block getGenesisBlock() {
@@ -199,42 +211,20 @@ public class BlockPOW extends BlockImpl {
 		transactions.add(transaction);
 	    }
 
-            return new BlockPOW(transactions);
+            return new BlockPOW(Init.GENESIS, transactions);
         }catch(Exception e){
             e.printStackTrace();
             throw new Error("GenesisBlock");
         }
     }
 
-   static BlockPOW parseBlock(JSONObject blockData, BlockImpl previousVerifiedBlock) throws NxtException.ValidationException {
-        try {
-            int timestamp = ((Number) blockData.get("timestamp")).intValue();
-            long previousBlockId = Convert.parseUnsignedLong((String) blockData.get("previousBlock"));
-            byte[] previousBlockHash = Convert.parseHexString((String) blockData.get("previousBlockHash"));
-            List<TransactionImpl> blockTransactions = new ArrayList<>();
-            for (Object transactionData : (JSONArray) blockData.get("transactions")) {
-                blockTransactions.add(TransactionImpl.parseTransaction((JSONObject) transactionData));
-            }
+   public BlockPOW(JSONObject blockData, BlockImpl previousVerifiedBlock) throws NxtException.ValidationException {
+        super(blockData, previousVerifiedBlock);
 
-            long nonce = (Long) blockData.get("nonce");
+        long nonce = (Long) blockData.get("nonce");
+        this.nonce = nonce;
 
-            if(previousVerifiedBlock == null){
-                previousVerifiedBlock = BlockDb.findBlock(previousBlockId);
-            }
-            BlockPOW block = new BlockPOW(timestamp, previousVerifiedBlock, blockTransactions);
-            block.nonce = nonce;
-
-            if( !block.verify(previousVerifiedBlock) ) {
-                throw new NotValidException("verification failed 1");
-            }
-            if( !block.verify() ) {
-                throw new NotValidException("verification failed 2");
-            }
-            return block;
-        } catch (NxtException.ValidationException|RuntimeException e) {
-            Logger.logDebugMessage("Failed to parse block: " + blockData.toJSONString());
-            throw e;
-        }
+        calculateBaseTarget((BlockPOW)previousBlock);
     }
 
     //TODO remove

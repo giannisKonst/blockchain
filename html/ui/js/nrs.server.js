@@ -187,7 +187,7 @@ var NRS = (function(NRS, $, undefined) {
 		var secretPhrase = "";
 
 		//unknown account..
-		if (type == "POST" && (NRS.accountInfo.errorCode && NRS.accountInfo.errorCode == 5)) {
+		if (type == "POST" && NRS.accountInfo.errorCode == 5  && requestType != 'startForging' && requestType != 'stopForging') { //TODO
 			if (callback) {
 				callback({
 					"errorCode": 2,

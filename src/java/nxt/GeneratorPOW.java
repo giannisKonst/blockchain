@@ -24,12 +24,14 @@ import nxt.BlockchainProcessor.BlockNotAcceptedException;
 import nxt.BlockchainProcessor.TransactionNotAcceptedException;
 
 
-public final class GeneratorPOW extends Generator {
+public class GeneratorPOW extends Generator {
 
     private volatile Listener<Block> newBlockListener;
     private volatile Block lastBlock;
     private volatile List<TransactionImpl> transactions = new ArrayList<>();
+
     private volatile boolean stop = true;
+    //private final Object lock = new Object();
 
     //private BigInteger nonce = 0; //should need persistance
     private volatile BlockPOW block;
@@ -38,27 +40,30 @@ public final class GeneratorPOW extends Generator {
     }
 
     public void init() {
-        ThreadPool.scheduleThread("GenerateBlocks", generateBlocksTask, 500, TimeUnit.MILLISECONDS);
+        ThreadPool.scheduleThread("GenerateBlocks", generateBlocksTask, 1, TimeUnit.MILLISECONDS);
     }
 
-    public void startForging(Block lastBlock) {
-        if(lastBlock==null){ throw new Error(); }
-        setLastBlock(lastBlock);
+    synchronized public boolean isForging() {
+        return !stop;
+    }
 
+    synchronized public void stopForging() {
+        stop = true;
+    }
+
+    synchronized public void startForging() {
+        if(getBlock() == null) {
+            throw new IllegalStateException("Generator is not yet fully initialized");
+        }
         stop = false;
-    }
-
-    public void pauseForging() {
-    }
-
-    public void resumeForging() {
+        //synchronized(lock){ lock.notifyAll(); }
     }
 
     public void onNewBlock(Listener<Block> listener) {
         this.newBlockListener = listener;
     }
 
-    private int getValidTimestamp(){
+    synchronized int getValidTimestamp() {
             int timestamp = Nxt.getEpochTime();
             if(timestamp <= ((BlockPOW)lastBlock).getTimestamp()){
                 timestamp = 1 + lastBlock.getTimestamp();
@@ -66,7 +71,11 @@ public final class GeneratorPOW extends Generator {
             return timestamp;
     }
 
-    private void renewBlock(){
+    synchronized BlockPOW getBlock() {
+        return block;
+    }
+
+    synchronized void renewBlock() {
         try{
             block = new BlockPOW(getValidTimestamp(), lastBlock, transactions);
         }catch(NxtException.ValidationException e){
@@ -75,17 +84,26 @@ public final class GeneratorPOW extends Generator {
         }
     }
 
+    synchronized public Block getLastBlock() {
+        return lastBlock;
+    }
 
     synchronized public void setLastBlock(Block lastBlock) {
+        if(lastBlock == null){ throw new Error(); }
         this.lastBlock = lastBlock;
         renewBlock();
-        Logger.logDebugMessage("setLastBlock() "+lastBlock.getJSONObject());
+        //Logger.logDebugMessage("setLastBlock() "+lastBlock.getJSONObject());
+    }
+
+    synchronized public List<TransactionImpl> getTransactions() {
+        return transactions;
     }
 
     synchronized public void addTransaction(TransactionImpl tx) {
         transactions.add(tx);
         renewBlock();
     }
+
     synchronized public void setTransactions(List<TransactionImpl> txs) {
         transactions = txs;
         renewBlock();
@@ -96,20 +114,32 @@ public final class GeneratorPOW extends Generator {
         private volatile int lastTimestamp;
         private volatile long lastBlockId;
         private final GeneratorPOW generator = GeneratorPOW.this;
+        private final int batchSize = 2;
 
         @Override
         public void run() {
-            //if(true)return;
-            //if(true)throw new Error("test");
-            if(stop){ return; }
             //System.out.println("generateBlocksTask");
+            if(stop) {
+                return; /*
+                synchronized(lock) {  //TODO
+                    if(stop){ try {
+                        lock.wait();
+                    }catch(InterruptedException e){}}
+                }*/
+            }
+            for(int i=0; i < batchSize; i++) {
+                work();
+            }
+        }
+
+        private void work() {
             try {
                 try {
                     //Logger.logDebugMessage("LAST "+lastBlock.getJSONObject());
-                    BlockPOW block = generator.block; //instead of synchronized{}
+                    BlockPOW block = generator.getBlock(); //instead of synchronized{}
                     if(block.verifyWork()) {
-                        BlockPOW.parseBlock(block.getJSONObject(), (BlockPOW)lastBlock); //TODO remove assertion
-                        Logger.logDebugMessage("NEW BLOCK "+block.getJSONObject());
+                        Config.BlockFactory.parseBlock(block.getJSONObject(), (BlockPOW)lastBlock); //TODO remove assertion
+                        //Logger.logDebugMessage("NEW BLOCK "+block.getJSONObject());
                         //Logger.logDebugMessage("NEW BLOCK hash="+Convert.toHexString(block.getHash()));
                         synchronized(generator) {
                             if(block == generator.block){

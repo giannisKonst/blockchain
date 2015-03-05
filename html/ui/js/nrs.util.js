@@ -588,11 +588,12 @@ var NRS = (function(NRS, $, undefined) {
 		}, no_escaping);
 	}
 
+        var epoch = Date.UTC(2015, 3, 1, 0, 0, 0, 0); //TODO get from server?
 	NRS.formatTimestamp = function(timestamp, date_only) {
 		if (typeof timestamp == "object") {
 			var date = timestamp;
 		} else {
-			var date = new Date(Date.UTC(2013, 10, 24, 12, 0, 0, 0) + timestamp * 1000);
+			var date = new Date(epoch + timestamp * 1000);
 		}
 
 		if (!isNaN(date) && typeof(date.getFullYear) == 'function') {
@@ -645,7 +646,7 @@ var NRS = (function(NRS, $, undefined) {
 	}
 
 	NRS.formatTime = function(timestamp) {
-		var date = new Date(Date.UTC(2013, 10, 24, 12, 0, 0, 0) + timestamp * 1000);
+		var date = new Date(epoch + timestamp * 1000);
 
 		if (!isNaN(date) && typeof(date.getFullYear) == 'function') {
 			var res = "";
