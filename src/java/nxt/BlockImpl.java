@@ -306,6 +306,7 @@ abstract class BlockImpl implements Block {
         //buffer.putInt(payloadLength);
         buffer.put(payloadHash);
         buffer.put(previousBlockHash);
+        System.out.println("previousBlockHash "+previousBlockHash.length);
         //buffer.putLong(nonce);
         //Logger.logDebugMessage("getBytes()= "+Convert.toHexString(buffer.array()));
         return buffer.array();

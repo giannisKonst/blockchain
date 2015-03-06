@@ -109,7 +109,7 @@ public class BlockPOW extends BlockImpl {
     public byte[] getBytes() {
         byte[] bytes = super.getBytes();
         int offset = super.getBytesSize();
-        ByteBuffer buffer = ByteBuffer.wrap( bytes, offset, 8 );
+        ByteBuffer buffer = ByteBuffer.wrap( bytes, offset, bytes.length-offset );
         buffer.putLong(nonce);
         return buffer.array();
     }
@@ -174,8 +174,8 @@ public class BlockPOW extends BlockImpl {
     boolean verifyWork() {
         byte[] h = this.getHash();
         byte[] lowHash = {h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]};
+        BigInteger hit = new BigInteger(1, lowHash); //TODO why only the low part?
         BigInteger target = BigInteger.valueOf(this.baseTarget);
-        BigInteger hit = new BigInteger(1, lowHash);
         //Logger.logDebugMessage("hit   ="+hit);
         //Logger.logDebugMessage("target="+target);
         return  hit.compareTo(target) == -1;
